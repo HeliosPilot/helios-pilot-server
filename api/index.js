@@ -3,7 +3,6 @@ import fetch from "node-fetch";
 import { Octokit } from "@octokit/rest";
 import crypto from 'crypto';
 
-// الذاكرة الحية والتفضيلات الديناميكية المتطورة
 let runtimeMemory = {
   creator: "Ismail-Benali (H3l!0s_T3k)",
   projectName: "HeliosPilot Pro",
@@ -16,7 +15,6 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-// تجزئة الرسائل الطويلة لتجنب حدود تيليجرام (4096 حرف)
 async function sendTelegramMessage(chatId, text) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token || !chatId) return;
@@ -36,18 +34,16 @@ async function sendTelegramMessage(chatId, text) {
   }
 }
 
-// التحقق من توقيع الأمان القادم من GitHub (اختياري إذا أردت تفعيله عبر WEBHOOK_SECRET)
 function verifyGitHubSignature(req) {
   const signature = req.headers["x-hub-signature-256"];
   const secret = process.env.GITHUB_WEBHOOK_SECRET;
-  if (!signature || !secret) return true; // تخطي إن لم يُفعل المفتاح
+  if (!signature || !secret) return true;
 
   const hmac = crypto.createHmac("sha256", secret);
   const digest = `sha256=${hmac.update(JSON.stringify(req.body)).digest("hex")}`;
   return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
 }
 
-// توليد توقيع JWT للـ GitHub App
 function generateGitHubAppJWT() {
   const appId = process.env.APP_ID;
   let privateKey = process.env.PRIVATE_KEY;
@@ -77,7 +73,6 @@ function generateGitHubAppJWT() {
   return `${signInput}.${signature}`;
 }
 
-// العثور على التثبيت المناسب للمستودع عبر الـ GitHub App
 async function getInstallationOctokitForRepo(owner, repo) {
   try {
     const jwtToken = generateGitHubAppJWT();
@@ -101,10 +96,32 @@ async function getInstallationOctokitForRepo(owner, repo) {
   return null;
 }
 
-// محلل روابط GitHub الشامل (Issues, PRs, Commits, Repos)
+// دالة إضافة تعليق فعلي على الـ Issue في GitHub
+async function addCommentToIssue(url, commentBody) {
+  try {
+    const issueMatch = url.match(/github\.com\/([^\/]+)\/([^\/]+)\/issues\/(\d+)/);
+    if (!issueMatch) return "رابط الـ Issue غير صالح لإضافة التعليق.";
+
+    const [, owner, repo, issueNumber] = issueMatch;
+    const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
+    if (!repoOctokit) return `عذراً، تطبيق GitHub App غير مثبت أو ليس لديه صلاحية الوصول للمستودع (${owner}/${repo}).`;
+
+    await repoOctokit.issues.createComment({
+      owner,
+      repo,
+      issue_number: parseInt(issueNumber),
+      body: commentBody
+    });
+
+    return `✅ تم نشر التعليق بنجاح على الـ Issue #${issueNumber} في (${owner}/${repo}).`;
+  } catch (error) {
+    return `فشل نشر التعليق على GitHub: ${error.message}`;
+  }
+}
+
+// محلل روابط GitHub الشامل
 async function parseAndFetchGitHubUrl(url) {
   try {
-    // 1. فحص روابط الـ Issues
     const issueMatch = url.match(/github\.com\/([^\/]+)\/([^\/]+)\/issues\/(\d+)/);
     if (issueMatch) {
       const [, owner, repo, issueNumber] = issueMatch;
@@ -126,12 +143,11 @@ async function parseAndFetchGitHubUrl(url) {
         `💬 **التعليقات (${comments.length}):**\n${commentsText}`;
     }
 
-    // 2. فحص روابط الـ Pull Requests
     const prMatch = url.match(/github\.com\/([^\/]+)\/([^\/]+)\/pull\/(\d+)/);
     if (prMatch) {
       const [, owner, repo, prNumber] = prMatch;
       const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
-      if (!repoOctokit) return `عذراً، تطبيق GitHub App غير مثبت أو ليس لديه صلاحية وصول للمستودع (${owner}/${repo}).`;
+      if (!repoOctokit) return `عذراً، تطبيق GitHub App غير مثبت أو ليس لديه صلاحية الوصول للمستودع (${owner}/${repo}).`;
 
       const { data: pr } = await repoOctokit.pulls.get({ owner, repo, pull_number: parseInt(prNumber) });
       const { data: files } = await repoOctokit.pulls.listFiles({ owner, repo, pull_number: parseInt(prNumber) });
@@ -145,23 +161,6 @@ async function parseAndFetchGitHubUrl(url) {
         `📂 **الملفات المعدلة (${files.length}):**\n${filesSummary}`;
     }
 
-    // 3. فحص روابط الـ Commits
-    const commitMatch = url.match(/github\.com\/([^\/]+)\/([^\/]+)\/commit\/([a-fA-F0-9]+)/);
-    if (commitMatch) {
-      const [, owner, repo, commitSha] = commitMatch;
-      const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
-      if (!repoOctokit) return `عذراً، لا يوجد صلاحية وصول للمستودع (${owner}/${repo}).`;
-
-      const { data: commitData } = await repoOctokit.repos.getCommit({ owner, repo, ref: commitSha });
-      const filesChanged = commitData.files ? commitData.files.map(f => `- \`${f.filename}\` (+${f.additions}, -${f.deletions})`).join("\n") : "غير متوفر";
-
-      return `📦 **تحليل Commit (${commitSha.substring(0,7)}) في (${owner}/${repo}):**\n` +
-        `- **المؤلف:** ${commitData.commit.author.name}\n` +
-        `- **الرسالة:** ${commitData.commit.message}\n` +
-        `- **الملفات المتأثرة:**\n${filesChanged}`;
-    }
-
-    // 4. فحص المستودعات العامة
     const repoMatch = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
     if (repoMatch) {
       const owner = repoMatch[1];
@@ -173,15 +172,7 @@ async function parseAndFetchGitHubUrl(url) {
       const { data: contents } = await repoOctokit.repos.getContent({ owner, repo, path: "" });
       const fileList = Array.isArray(contents) ? contents.map(f => f.name).join(", ") : "ملف رئيسي واحد";
 
-      let packageJsonContent = "";
-      try {
-        const { data: pkgData } = await repoOctokit.repos.getContent({ owner, repo, path: "package.json" });
-        packageJsonContent = Buffer.from(pkgData.content, 'base64').toString('utf8');
-      } catch (e) {
-        packageJsonContent = "لا يوجد package.json";
-      }
-
-      return `📂 **بيانات المستودع (${owner}/${repo}):**\n- الملفات: ${fileList}\n- package.json:\n${packageJsonContent}`;
+      return `📂 **بيانات المستودع (${owner}/${repo}):**\n- الملفات: ${fileList}`;
     }
 
     return "رابط GitHub غير صالح أو غير مدعوم.";
@@ -190,7 +181,6 @@ async function parseAndFetchGitHubUrl(url) {
   }
 }
 
-// جلب قائمة المستودعات المرتبطة
 async function fetchAppInstallationsAndRepos() {
   try {
     const jwtToken = generateGitHubAppJWT();
@@ -220,7 +210,6 @@ async function fetchAppInstallationsAndRepos() {
   }
 }
 
-// محرك Groq للذكاء الاصطناعي
 async function callGroqModel(systemInstruction, userPrompt) {
   const chatCompletion = await groq.chat.completions.create({
     messages: [
@@ -235,7 +224,6 @@ async function callGroqModel(systemInstruction, userPrompt) {
   return chatCompletion.choices[0]?.message?.content?.trim();
 }
 
-// محرك OpenRouter الاحتياطي (Fallback)
 async function callOpenRouterModel(systemInstruction, userPrompt) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OpenRouter API key is not set");
@@ -261,7 +249,6 @@ async function callOpenRouterModel(systemInstruction, userPrompt) {
   return data.choices[0]?.message?.content?.trim();
 }
 
-// المعالج الذكي الموحد مع الذاكرة الديناميكية ونظام Fallback
 async function processSmartAIResponse(userPrompt) {
   const systemInstruction = `أنت HeliosPilot Pro، مساعد ذكاء اصطناعي تقني صُممت بواسطة (Ismail-Benali) المعروف بـ (H3l!0s_T3k).
 الذاكرة الحية والسياق التقني الحالي: ${JSON.stringify(runtimeMemory)}
@@ -283,7 +270,7 @@ async function processSmartAIResponse(userPrompt) {
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(200).json({ status: "HeliosPilot Pro Enterprise is online!" });
+    return res.status(200).json({ status: "HeliosPilot Pro Enterprise with Commenting is online!" });
   }
 
   try {
@@ -295,7 +282,6 @@ export default async function handler(req, res) {
     const payload = req.body;
     const chatId = process.env.TELEGRAM_CHAT_ID;
 
-    // 1. أحداث الـ Issues
     if (event === "issues" && payload.action === "opened") {
       const issueTitle = payload.issue.title;
       const issueBody = payload.issue.body || "لا يوجد وصف";
@@ -308,7 +294,6 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true });
     }
 
-    // 2. أحداث الـ Pull Requests (Code Review)
     if (event === "pull_request" && (payload.action === "opened" || payload.action === "synchronize")) {
       const prTitle = payload.pull_request.title;
       const prUrl = payload.pull_request.html_url;
@@ -321,34 +306,18 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true });
     }
 
-    // 3. أحداث الـ Push للمستودعات
-    if (event === "push") {
-      const repoName = payload.repository?.full_name || "مستودع";
-      const branch = payload.ref.replace("refs/heads/", "");
-      const pusher = payload.pusher?.name || "مستخدم";
-      const commitsCount = payload.commits?.length || 0;
-
-      if (commitsCount > 0) {
-        const latestCommitMsg = payload.commits[0].message;
-        await sendTelegramMessage(chatId, `🚀 *Push جديد على (${repoName})*\n\n- **الفرع:** \`${branch}\`\n- **بواسطة:** ${pusher}\n- **عدد الكوميتات:** ${commitsCount}\n- **آخر رسالة:** ${latestCommitMsg}`);
-      }
-      return res.status(200).json({ success: true });
-    }
-
-    // 4. معالجة تفاعلات تيليجرام
     if (payload.message && payload.message.text) {
       const userText = payload.message.text.trim();
       const userTextLower = userText.toLowerCase();
 
-      // التعلم التلقائي من رسائل المطور
       if (!userText.startsWith("/") && userText.length > 15 && (userText.includes("نريد") || userText.includes("أريد") || userText.includes("مهم") || userText.includes("قاعدة"))) {
         runtimeMemory.dynamicMemory.push(userText);
       }
 
       if (userText === "/start" || userText === "/help") {
-        await sendTelegramMessage(chatId, `👋 أهلاً بك يا H3l!0s_T3k!\n\nأنا **HeliosPilot Pro Enterprise**. أدير وأراجع مستودعاتك بالكامل وأتعلم تلقائياً.\n` +
+        await sendTelegramMessage(chatId, `👋 أهلاً بك يا H3l!0s_T3k!\n\nأنا **HeliosPilot Pro**. أراجع وأعلق على الـ Issues وأدير مستودعاتك.\n` +
           `• \`/status\` - عرض الحالة والذاكرة الحية\n` +
-          `• أرسل أي رابط GitHub (مستودع، Issue، PR، أو Commit) لتحليله فـوراً.`);
+          `• أرسل رابط أي Issue مع طلب تعليق (مثال: "اضف تعليق على [الرابط]: [نص التعليق]") وسأنشره فوراً.`);
         return res.status(200).json({ success: true });
       }
 
@@ -366,7 +335,33 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true });
       }
 
-      // معالجة روابط GitHub المرسلة في الشات
+      // طلب إضافة تعليق مباشر على Issue
+      if (userTextLower.includes("اضف تعليق") || userTextLower.includes("اكتب تعليق") || userTextLower.includes("تعليق لـ")) {
+        const urlMatch = userText.match(/https:\/\/github\.com\/[^\s]+/);
+        if (!urlMatch) {
+          await sendTelegramMessage(chatId, "⚠️ يرجى تضمين رابط الـ Issue الصحيح مع طلب التعليق.");
+          return res.status(200).json({ success: true });
+        }
+
+        const targetUrl = urlMatch[0];
+        // استخراج نص التعليق (كل ما يأتي بعد الرابط أو استنباطه عبر الذكاء الاصطناعي)
+        let commentText = userText.replace(targetUrl, "").replace(/اضف تعليق|اكتب تعليق|على|لـ/g, "").trim();
+        
+        if (!commentText || commentText.length < 3) {
+          // إذا لم يكتب نصاً، نطلب من الذكاء الاصطناعي صياغة تعليق احترافي بناءً على محتوى الـ Issue
+          await sendTelegramMessage(chatId, "🔍 جاري تحليل الـ Issue لصياغة ونشر التعليق التقني المناسب...");
+          const issueContent = await parseAndFetchGitHubUrl(targetUrl);
+          commentText = await processSmartAIResponse(`بناءً على تفاصيل الـ Issue التالية، اكتب تعليقاً تقنياً احترافياً مختصراً ومباشراً:\n${issueContent}`);
+        } else {
+          await sendTelegramMessage(chatId, "⏳ جاري نشر التعليق على GitHub...");
+        }
+
+        const resultResponse = await addCommentToIssue(targetUrl, commentText);
+        await sendTelegramMessage(chatId, resultResponse);
+        return res.status(200).json({ success: true });
+      }
+
+      // معالجة روابط GitHub العادية (للقراءة والتحليل)
       if (userText.includes("github.com/")) {
         await sendTelegramMessage(chatId, "🔍 جاري سحب وتحليل البيانات بدقة عبر GitHub App API...");
         const extractedData = await parseAndFetchGitHubUrl(userText);
@@ -380,16 +375,6 @@ export default async function handler(req, res) {
         await sendTelegramMessage(chatId, "🔍 جاري فحص المستودعات المرتبطة بالتطبيق...");
         const repos = await fetchAppInstallationsAndRepos();
         await sendTelegramMessage(chatId, `📂 *المستودعات المثبت عليها التطبيق:*\n\n${repos.map(r => `• ${r}`).join("\n")}`);
-        return res.status(200).json({ success: true });
-      }
-
-      if (userTextLower.includes("من أنت") || userTextLower.includes("من انت") || userTextLower.includes("من صممك")) {
-        await sendTelegramMessage(chatId, `أنا **HeliosPilot Pro** صممني (Ismail-Benali) المعروف بـ **H3l!0s_T3k** كمنظومة ذكية متكاملة لإدارة ومراجعة الأكواد.`);
-        return res.status(200).json({ success: true });
-      }
-
-      if (userTextLower === "مرحبا" || userTextLower === "سلام" || userTextLower === "hello") {
-        await sendTelegramMessage(chatId, "أهلاً بك يا H3l!0s_T3k. أنا HeliosPilot Pro بكامل الجاهزية، ما المهمة البرمجية التالية؟");
         return res.status(200).json({ success: true });
       }
 
