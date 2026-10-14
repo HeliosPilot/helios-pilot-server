@@ -43,7 +43,6 @@ async function sendTelegramMessage(chatId, text) {
   });
 }
 
-// توليد توقيع JWT للـ GitHub App معتمدين على APP_ID و PRIVATE_KEY
 function generateGitHubAppJWT() {
   const appId = process.env.APP_ID;
   let privateKey = process.env.PRIVATE_KEY;
@@ -52,7 +51,6 @@ function generateGitHubAppJWT() {
     throw new Error("GitHub App credentials (APP_ID or PRIVATE_KEY) are missing.");
   }
 
-  // تصحيح صيغة المفتاح السري في حال تخزينه بأسطر مُشفرة كـ \n
   privateKey = privateKey.replace(/\\n/g, '\n');
 
   const now = Math.floor(Date.now() / 1000);
@@ -74,12 +72,11 @@ function generateGitHubAppJWT() {
   return `${signInput}.${signature}`;
 }
 
-// جلب المستودعات المثبت عليها الـ GitHub App تلقائياً
+// جلب مستودعات التثبيت
 async function fetchAppInstallationsAndRepos() {
   try {
     const jwtToken = generateGitHubAppJWT();
     const octokit = new Octokit({ auth: jwtToken });
-
     const { data: installations } = await octokit.apps.listInstallations();
     
     if (!installations || installations.length === 0) {
@@ -87,7 +84,6 @@ async function fetchAppInstallationsAndRepos() {
     }
 
     let allRepos = [];
-
     for (const installation of installations) {
       const { data: accessTokenData } = await octokit.apps.createInstallationAccessToken({
         installation_id: installation.id,
@@ -100,11 +96,68 @@ async function fetchAppInstallationsAndRepos() {
         allRepos.push(`[${repo.full_name}](${repo.html_url}) - ${repo.description || "بدون وصف"}`);
       }
     }
-
-    return allRepos.length > 0 ? allRepos : ["لا توجد مستودعات متاحة ضمن هذا التثبيت."];
+    return allRepos;
   } catch (error) {
     console.error("GitHub App API Error:", error);
-    return [`خطأ في الاتصال بـ GitHub App API: ${error.message}`];
+    return [`خطأ في الاتصال: ${error.message}`];
+  }
+}
+
+// دالة لجلب محتوى مستودع محدد عبر رابطه وتحليله
+async function analyzeRepositoryByUrl(repoUrl) {
+  try {
+    // استخراج owner و repo من الرابط مثل: https://github.com/Ismail-Benali/HELIOS-NET
+    const regex = /github\.com\/([^\/]+)\/([^\/]+)/;
+    const match = repoUrl.match(regex);
+    if (!match) return "رابط المستودع غير صالح.";
+
+    const owner = match[1];
+    const repo = match[2].replace(/\/$/, ""); // إزالة الشرطة المائلة إن وجدت
+
+    const jwtToken = generateGitHubAppJWT();
+    const octokit = new Octokit({ auth: jwtToken });
+    const { data: installations } = await octokit.apps.listInstallations();
+
+    let repoOctokit = null;
+    for (const installation of installations) {
+      const { data: accessTokenData } = await octokit.apps.createInstallationAccessToken({
+        installation_id: installation.id,
+      });
+      const tempOctokit = new Octokit({ auth: accessTokenData.token });
+      
+      // التحقق مما إذا كان هذا التثبيت يمتلك صلاحية على المستودع المطلوب
+      try {
+        const { data: repoData } = await tempOctokit.repos.get({ owner, repo });
+        if (repoData) {
+          repoOctokit = tempOctokit;
+          break;
+        }
+      } catch (e) {
+        // متابعة البحث في باقي التثبيتات
+      }
+    }
+
+    if (!repoOctokit) {
+      return `عذراً، تطبيق GitHub App غير مثبت على المستودع (${owner}/${repo}) أو ليس لدي صلاحية الوصول إليه. يرجى تثبيت التطبيق عليه أولاً.`;
+    }
+
+    // جلب قائمة الملفات الأساسية وهيكل المستودع
+    const { data: contents } = await repoOctokit.repos.getContent({ owner, repo, path: "" });
+    const fileList = Array.isArray(contents) ? contents.map(f => f.name).join(", ") : "ملف واحد رئيسي";
+
+    // محاولة جلب package.json إن وجد لرؤية التقنيات
+    let packageJsonContent = "";
+    try {
+      const { data: pkgData } = await repoOctokit.repos.getContent({ owner, repo, path: "package.json" });
+      packageJsonContent = Buffer.from(pkgData.content, 'base64').toString('utf8');
+    } catch (e) {
+      packageJsonContent = "لا يوجد ملف package.json";
+    }
+
+    return `تم جلب بيانات المستودع (${owner}/${repo}) بنجاح:\n- الملفات والمجلدات الأساسية: ${fileList}\n- محتوى package.json:\n${packageJsonContent}`;
+  } catch (error) {
+    console.error("Repo Analysis Error:", error);
+    return `فشل جلب بيانات المستودع: ${error.message}`;
   }
 }
 
@@ -166,7 +219,7 @@ async function callAIModel(userPrompt) {
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(200).json({ status: "HeliosPilot GitHub App is online!" });
+    return res.status(200).json({ status: "HeliosPilot GitHub App is online with Repo Analysis!" });
   }
 
   try {
@@ -192,7 +245,7 @@ export default async function handler(req, res) {
       const chatId = payload.message.chat.id;
 
       if (userText === "/start" || userText === "/help") {
-        const welcomeText = `👋 أهلاً بك يا H3l!0s_T3k!\n\nأنا **HeliosPilot** (GitHub App) صممني (Ismail-Benali) المعروف بـ **H3l!0s_T3k**. أستطيع تتبع مستودعاتك المثبتة وتقديم الدعم التقني المباشر.`;
+        const welcomeText = `👋 أهلاً بك يا H3l!0s_T3k!\n\nأنا **HeliosPilot** (GitHub App). أستطيع تحليل مستودعاتك عبر روابطها مباشرة وتقديم الدعم التقني.`;
         await sendTelegramMessage(chatId, welcomeText);
         return res.status(200).json({ success: true });
       }
@@ -209,6 +262,19 @@ export default async function handler(req, res) {
 
       if (userText === "/clear") {
         await sendTelegramMessage(chatId, "🧹 تم إعادة تهيئة المحادثة الحالية.");
+        return res.status(200).json({ success: true });
+      }
+
+      // إذا أرسل المستخدم رابط مستودع GitHub
+      if (userText.includes("github.com/")) {
+        await sendTelegramMessage(chatId, "🔍 جاري فحص المستودع وسحب البيانات عبر GitHub App...");
+        const repoDataSummary = await analyzeRepositoryByUrl(userText);
+        
+        // إرسال البيانات المسحوبة إلى النموذج ليقوم بتحليلها وإعطاء الرأي التقني
+        const prompt = `قم بتحليل هذا المستودع بناءً على البيانات المستخرجة:\n${repoDataSummary}`;
+        const aiEvaluation = await callAIModel(prompt);
+
+        await sendTelegramMessage(chatId, `📊 *تقييم وتحليل المستودع:*\n\n${aiEvaluation}`);
         return res.status(200).json({ success: true });
       }
 
@@ -236,7 +302,7 @@ export default async function handler(req, res) {
         userTextLower.includes("من أنشأك") ||
         userTextLower.includes("who are you")
       ) {
-        const identityResponse = `أنا **HeliosPilot** صممني (Ismail-Benali) المعروف بـ **H3l!0s_T3k** كـ GitHub App متكامل لمتابعة الأكواد والمستودعات بدقة واختصار.`;
+        const identityResponse = `أنا **HeliosPilot** صممني (Ismail-Benali) المعروف بـ **H3l!0s_T3k** كـ GitHub App متكامل لتحليل المستودعات ومتابعة الأكواد.`;
         await sendTelegramMessage(chatId, identityResponse);
         return res.status(200).json({ success: true });
       }
