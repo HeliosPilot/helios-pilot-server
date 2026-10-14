@@ -6,6 +6,14 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
+// ذاكرة البوت الخاصة بمشروع HeliosPilot فقط
+const botMemory = {
+  creator: "Ismail-Benali (H3l!0s_T3k)",
+  projectName: "HeliosPilot",
+  coreStack: "Node.js, Vercel Serverless, Groq API (qwen/qwen3.8-27b), Probot, Telegram Bot API",
+  notes: "المطور يفضل الدقة، الاختصار، الكود النظيف، المباشرة، وعدم المجاملة."
+};
+
 async function sendTelegramMessage(chatId, text) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token || !chatId) return;
@@ -17,18 +25,32 @@ async function sendTelegramMessage(chatId, text) {
   });
 }
 
-async function callGroqModel(promptText) {
+async function callGroqModel(userPrompt) {
   try {
+    const systemInstruction = `أنت HeliosPilot، مساعد ذكاء اصطناعي تقني تم تصميمك وصناعتك بواسطة المطور (Ismail-Benali) المعروف بـ (H3l!0s_T3k) لمساعدته في إدارة وتطوير مشاريعه البرمجية والأكواد والـ Webhooks.
+    
+معلومات الذاكرة الحالية:
+- المنشئ: ${botMemory.creator}
+- اسم المشروع: ${botMemory.projectName}
+- التقنيات المستخدمة: ${botMemory.coreStack}
+- ملاحظات خاصة: ${botMemory.notes}
+
+قواعد الرد:
+1. أجب باختصار، وبصيغة تقنية بحتة واحترافية باللغة العربية.
+2. لا تقم بالمجاملة، وكن مباشراً في تحليل الأكواد والمشكلات.
+3. انسخ الأكواد البرمجية دائماً داخل مربعات تنسيق Markdown واضحة (code blocks) مع تحديد لغة البرمجة.
+4. تذكر دائماً هويتك وأنك صُنعت بواسطة H3l!0s_T3k.`;
+
     const chatCompletion = await groq.chat.completions.create({
       messages: [
-        { role: "system", content: "أنت مساعد تقني ومطور برمجيات. أجب باختصار ودقة بالعربية." },
-        { role: "user", content: promptText }
+        { role: "system", content: systemInstruction },
+        { role: "user", content: userPrompt }
       ],
       model: "qwen/qwen3.8-27b",
-      temperature: 0.6,
+      temperature: 0.5,
       max_completion_tokens: 2048,
       top_p: 0.95,
-      stream: false, // تم جعله false لتجميع الرد وإرساله دفعة واحدة لـ Telegram
+      stream: false,
       reasoning_effort: "default",
     });
 
@@ -42,7 +64,7 @@ async function callGroqModel(promptText) {
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(200).json({ status: "HeliosPilot is online with Groq SDK!" });
+    return res.status(200).json({ status: "HeliosPilot is online and fully armed!" });
   }
 
   try {
@@ -56,16 +78,45 @@ export default async function handler(req, res) {
       const issueUrl = payload.issue.html_url;
       const chatId = process.env.TELEGRAM_CHAT_ID;
 
-      const aiReply = await callGroqModel(`العنوان: ${issueTitle}\nالوصف: ${issueBody}`);
-      await sendTelegramMessage(chatId, `🚨 *Issue جديدة!*\n\n📌 *العنوان:* ${issueTitle}\n🔗 *الرابط:* ${issueUrl}\n\n🤖 *تحليل الذكاء الاصطناعي:* \n${aiReply}`);
+      const aiReply = await callGroqModel(`تحليل Issue جديدة:\nالعنوان: ${issueTitle}\nالوصف: ${issueBody}`);
+      await sendTelegramMessage(chatId, `🚨 *Issue جديدة تم رصدها!*\n\n📌 *العنوان:* ${issueTitle}\n🔗 *الرابط:* ${issueUrl}\n\n🤖 *تحليل HeliosPilot:* \n${aiReply}`);
 
       return res.status(200).json({ success: true });
     }
 
-    // 2. التعامل مع رسائل Telegram المباشرة
+    // 2. التعامل مع رسائل Telegram المباشرة والأوامر
     if (payload.message && payload.message.text) {
-      const userText = payload.message.text;
+      const userText = payload.message.text.trim();
       const chatId = payload.message.chat.id;
+
+      if (userText === "/start" || userText === "/help") {
+        const welcomeText = `👋 أهلاً بك يا H3l!0s_T3k! أنا **HeliosPilot**، مساعدك التقني الشخصي.\n\n` +
+          `🛠️ **صممني:** Ismail-Benali (معروف بـ \`H3l!0s_T3k\`)\n` +
+          `🎯 **دوري:** مساعدتك تقنياً، تحليل مشكلات الأكواد، وإدارة مستودعاتك.\n\n` +
+          `📌 **الأوامر المتاحة:**\n` +
+          `• \`/memory\` - عرض بيانات الذاكرة للنظام.\n` +
+          `• \`/clear\` - إعادة ضبط المحادثة.\n` +
+          `• اطرح أي استفسار برمجي وسأجيبك فوراً.`;
+        
+        await sendTelegramMessage(chatId, welcomeText);
+        return res.status(200).json({ success: true });
+      }
+
+      if (userText === "/memory") {
+        const memoryReport = `🧠 **سجل ذاكرة HeliosPilot:**\n\n` +
+          `- **المنشئ:** \`${botMemory.creator}\`\n` +
+          `- **المشروع:** ${botMemory.projectName}\n` +
+          `- **التقنيات:** ${botMemory.coreStack}\n` +
+          `- **السياسة:** ${botMemory.notes}`;
+
+        await sendTelegramMessage(chatId, memoryReport);
+        return res.status(200).json({ success: true });
+      }
+
+      if (userText === "/clear") {
+        await sendTelegramMessage(chatId, "🧹 تم إعادة تهيئة السياق.");
+        return res.status(200).json({ success: true });
+      }
 
       const replyText = await callGroqModel(userText);
       await sendTelegramMessage(chatId, replyText);
