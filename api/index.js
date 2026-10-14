@@ -15,6 +15,7 @@ async function callNvidiaNim(promptText) {
   const apiKey = process.env.NVIDIA_API_KEY;
   
   try {
+    // جربنا هنا النموذج البديل المتوافق مباشرة مع منصة NVIDIA NIM
     const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -23,7 +24,7 @@ async function callNvidiaNim(promptText) {
         "Accept": "application/json"
       },
       body: JSON.stringify({
-        model: "deepseek-ai/deepseek-r1",
+        model: "deepseek-ai/deepseek-v4.1-flash", 
         messages: [
           { role: "system", content: "أنت مساعد تقني ومطور برمجيات. أجب باختصار بالعربية." },
           { role: "user", content: promptText }
@@ -36,19 +37,16 @@ async function callNvidiaNim(promptText) {
 
     const rawText = await response.text();
 
-    // طباعة الاستجابة الخام في سجلات Vercel لنرى السبب الحقيقي
-    console.log("NVIDIA Raw Response:", rawText);
-
     if (!response.ok) {
-      return `عذراً، خطأ من خادم NVIDIA (${response.status}): ${rawText.slice(0, 150)}`;
+      console.error("NVIDIA Error:", rawText);
+      return `عذراً، خطأ من خادم NVIDIA (${response.status}): تأكد من اسم النموذج أو مفتاح الـ API.`;
     }
 
     const data = JSON.parse(rawText);
     const content = data.choices?.[0]?.message?.content;
     
     if (content) {
-      const cleanContent = content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-      return cleanContent || content;
+      return content.trim();
     }
 
     return "لم يتم استلام نص من النموذج.";
