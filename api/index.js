@@ -34,6 +34,24 @@ async function saveRuntimeMemory(mem) {
   }
 }
 
+async function generateWeeklySummary() {
+  try {
+    const memory = await getRuntimeMemory();
+    const repos = await fetchAppInstallationsAndRepos();
+    
+    const summary = `📊 *ملخص أسبوعي HELIOS-NET* ⚡\n\n` +
+      `- **المالك:** \`${memory.creator}\`\n` +
+      `- **المشروع:** ${memory.targetProject}\n` +
+      `- **المستودعات المحمية:** ${repos.length > 0 ? repos.length : "لا يوجد"} مستودع\n\n` +
+      `_النظام يعمل بكفاءة ويحمل حراسة مستمرة._ 🛡️`;
+    
+    return summary;
+  } catch (err) {
+    captureException(err, { context: "generateWeeklySummary" });
+    return `⚠️ حدث خطأ في توليد التقرير الأسبوعي.`;
+  }
+}
+
 async function triageAndLabelIssue(owner, repo, issueNumber, issueTitle, issueBody, dynamicMemory) {
   try {
     const prompt = `حلل الـ Issue التالية لمشروع HELIOS-NET واقترح تصنيفاً واحداً أو اثنين من هذه الـ Labels فقط (bug, enhancement, security, documentation, core):\nالعنوان: ${issueTitle}\nالوصف: ${issueBody}\nأجب بكلمات الـ Label مفصولة بمسافة فقط بدون أي نص إضافي.`;
@@ -142,12 +160,54 @@ export default async function handler(req, res) {
         const conclusion = ghPayload.workflow_run?.conclusion;
         const runUrl = ghPayload.workflow_run?.html_url;
         const repoName = ghPayload.repository?.full_name || "HELIOS-NET";
+        const owner = ghPayload.repository?.owner?.login;
+        const repo = ghPayload.repository?.name;
 
         if (conclusion === "failure") {
+          if (!owner || !repo) {
+            await sendTelegramMessage(chatId, `❌ **فشل في خط البناء Actions!** 🔥\n\n` +
+              `• **العملية:** ${workflowName}\n` +
+              `• **المستودع:** ${repoName}\n` +
+              `• **لا يمكن إنشاء PR تلقائياً:** غير متصل بـ GitHub App`);
+            return res.status(200).json({ success: true });
+          }
+
+          await sendTelegramMessage(chatId, `🛠️ **HeliosPilot Auto-Patch Engine** فعال...\n\n` +
+            `• **اكتشاف فشل:** ${workflowName}\n` +
+            `• **المستودع:** \`${owner}/${repo}\`\n` +
+            `• **الحالة:** FAILED 🔴\n\n` +
+            `🤖 **جاري تحليل الفشل وإنشاء تصحيح آلي...**`);
+
+          try {
+            const parsedPr = await parseAndFetchGitHubUrl(runUrl);
+            const autoFix = await processSmartAIResponse(`Generate an elite English auto-fix for this CI/CD failure in HELIOS-NET:\n${parsedPr}`, memory.dynamicMemory);
+
+            const repoOctokit = await import('../services/github.js').then(m => m.getInstallationOctokitForRepo(owner, repo));
+            if (repoOctokit) {
+              await repoOctokit.pulls.create({
+                owner,
+                repo,
+                title: `🛠️ Auto-Patch: ${workflowName} Fix`,
+                body: `⚡ **HeliosPilot Auto-Patch Engine** detected a build failure and applied automatic fixes.\n\n** failing workflow:** ${workflowName}\n** Analysis:** ${autoFix}`,
+                head: `helios-pilot/auto-patch-${new Date().getTime()}`,
+                base: "main"
+              });
+              await sendTelegramMessage(chatId, `✅ **Auto-Patch تم إنشاؤه successfully!** ⚡\n\n` +
+                `• **PR:** \`${owner}/${repo}\`\n` +
+                `• **عنوان الخط:** Auto-Patch: ${workflowName} Fix\n` +
+                `• **تم إنشاؤه من قبل:** HeliosPilot Veteran DevSecOps`);
+            } else {
+              await sendTelegramMessage(chatId, `🛑 **لا يمكن إنشاء PR:** المستودع غير مرتبط بـ GitHub App.`);
+            }
+          } catch (err) {
+            captureException(err, { context: "autoPatchWorkflow" });
+            await sendTelegramMessage(chatId, `⚠️ **Auto-Patch فشل:** حدث خطأ أثناء التحليل. برجاء استخدام الزر اليدوي.`);
+          }
+
           const inlineKeyboard = {
             inline_keyboard: [
               [
-                { text: "🛠️ طلب تصحيح آلي (Auto-Patch)", callback_data: `autofix:${runUrl}` }
+                { text: "🛠️ عرض PR المقترح", callback_data: `viewpr:${runUrl}` }
               ]
             ]
           };
@@ -379,12 +439,27 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true });
       }
 
-      try {
+try {
       const replyText = await processSmartAIResponse(userText, memory.dynamicMemory);
       await sendTelegramMessage(chatId, replyText ?? "🤖 HeliosPilot: تم استقبال رسالتك ولكناجهز رداً تقنياً...");
     } catch (aiError) {
       captureException(aiError, { context: "processSmartAIResponse" });
-      await sendTelegramMessage(chatId, "🤖 HeliosPilot: استقبلتُ رسالتك ولكنواجهت صعوبة في المعالجة التقنية حالياً. حاول مرة أخرى later. ⚡");
+      await sendTelegramMessage(chatId, "🤖 HeliosPilot: استقبلتُ رسالتك ولكنواجهت صعوبة في المعالجة التقنية حالياً.حاول مرة أخرى later. ⚡");
+    }
+
+    if (userText === "/metrics") {
+      await sendTelegramMessage(chatId, "🔧 **HeliosPilot Code Metrics**...\n\nجاري تحليل مقاييس الكود...");
+      const metrics = await processSmartAIResponse(`Analyze code metrics for HELIOS-NET: complexity, maintainability, and suggest improvements. Provide technical English comments only.`, memory.dynamicMemory);
+      await sendTelegramMessage(chatId, `📊 *مقاييس HELIOS-NET المخضرم:*\n\n${metrics}`, {
+        inline_keyboard: [[{ text: "🔄 تحليل مرة أخرى", callback_data: `/metrics` }]]
+      });
+      return res.status(200).json({ success: true });
+    }
+
+    if (userText === "/weekly") {
+      const weeklySummary = await generateWeeklySummary();
+      await sendTelegramMessage(chatId, weeklySummary);
+      return res.status(200).json({ success: true });
     }
 
     return res.status(200).json({ success: true });
