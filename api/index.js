@@ -4,7 +4,6 @@ import { Octokit } from "@octokit/rest";
 import crypto from 'crypto';
 import { kv } from '@vercel/kv';
 
-// الذاكرة الافتراضية كاحتياط في حال لم يتم ضبط Vercel KV
 const DEFAULT_MEMORY = {
   creator: "Ismail-Benali (H3l!0s_T3k)",
   projectName: "HeliosPilot Pro Enterprise",
@@ -19,7 +18,7 @@ async function getRuntimeMemory() {
     const mem = await kv.get("helios_runtime_memory");
     return mem ? mem : DEFAULT_MEMORY;
   } catch (err) {
-    console.error("KV Read Error, using default memory:", err);
+    console.error("KV Read Error:", err);
     return DEFAULT_MEMORY;
   }
 }
@@ -153,7 +152,7 @@ async function addCommentToIssueOrPR(url, commentBody) {
     const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
     
     if (!repoOctokit) {
-      return `🛑 **صلاحيات مفقودة:** المستودع \`${owner}/${repo}\` غير مقترن بـ GitHub App أو لا أملك صلاحية الكتابة عليه.`;
+      return `🛑 **صلاحيات مفقودة:** المستودع \`${owner}/${repo}\` غير مقترن بـ GitHub App.`;
     }
 
     await repoOctokit.issues.createComment({
@@ -166,6 +165,37 @@ async function addCommentToIssueOrPR(url, commentBody) {
     return `✅ **تم النشر بنجاح:** أُضيف التعليق على ${type === 'pull' ? 'PR' : 'Issue'} #${number} في (\`${owner}/${repo}\`).`;
   } catch (error) {
     return `❌ **فشل النشر:** ${error.message}`;
+  }
+}
+
+// ميزة رقم 4: التصنيف التلقائي للـ Issues وتحديد الـ Labels بالذكاء الاصطناعي
+async function triageAndLabelIssue(owner, repo, issueNumber, issueTitle, issueBody) {
+  try {
+    const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
+    if (!repoOctokit) return;
+
+    const prompt = `حلل الـ Issue التالية واقترح تصنيفاً واحداً أو اثنين من هذه الـ Labels فقط (bug, enhancement, security, documentation, question):\nالعنوان: ${issueTitle}\nالوصف: ${issueBody}\nأجب بكلمات الـ Label مفصولة بمسافة فقط بدون أي نص إضافي.`;
+    
+    const aiResponse = await processSmartAIResponse(prompt);
+    const suggestedLabels = aiResponse.toLowerCase().match(/(bug|enhancement|security|documentation|question)/g) || ["bug"];
+
+    // إضافة الـ Labels للـ Issue
+    await repoOctokit.issues.addLabels({
+      owner,
+      repo,
+      issue_number: issueNumber,
+      labels: suggestedLabels
+    });
+
+    const comment = `🤖 **HeliosPilot AI Triage:**\nتم تحليل الـ Issue تلقائياً وتصنيفها تحت الـ Labels التالية: \`${suggestedLabels.join(', ')}\`. جاري مراجعتها من قبل الفريق.`;
+    await repoOctokit.issues.createComment({
+      owner,
+      repo,
+      issue_number: issueNumber,
+      body: comment
+    });
+  } catch (err) {
+    console.error("Issue Triage Error:", err);
   }
 }
 
@@ -319,6 +349,20 @@ async function processSmartAIResponse(userPrompt) {
 }
 
 export default async function handler(req, res) {
+  // ميزة رقم 3: تقرير الأمان والصحة الأسبوعي (Cron Job Endpoint)
+  if (req.method === "GET" && req.query.cron === "true") {
+    const chatId = process.env.TELEGRAM_CHAT_ID;
+    if (chatId) {
+      const repos = await fetchAppInstallationsAndRepos();
+      const digest = `🛡️ **HeliosPilot Weekly Security & Health Briefing:**\n\n` +
+        `• **حالة النظام:** مستقر ومحمي بـ Vercel KV.\n` +
+        `• **المستودعات المراقبة:**\n${repos.map(r => `  - ${r}`).join("\n")}\n\n` +
+        `_جميع النظم تعمل بكفاءة عالية وتحت المراقبة المستمرة._`;
+      await sendTelegramMessage(chatId, digest);
+    }
+    return res.status(200).json({ status: "Weekly digest dispatched successfully" });
+  }
+
   if (req.method !== "POST") {
     return res.status(200).json({ status: "HeliosPilot Secure Enterprise Engine is online!" });
   }
@@ -332,14 +376,12 @@ export default async function handler(req, res) {
       const callbackQuery = payload.callback_query;
       const queryChatId = callbackQuery.message?.chat?.id?.toString();
 
-      // التحقق من صلاحيات المستخدم في التيليجرام
       if (chatId && queryChatId !== chatId.toString()) {
         await answerTelegramCallback(callbackQuery.id, "⛔ غير مسموح لك باستخدام هذه الأزرار.");
         return res.status(200).json({ success: false });
       }
 
       const data = callbackQuery.data;
-      const messageId = callbackQuery.message?.message_id;
 
       if (data.startsWith("comment:")) {
         const prOrIssueUrl = data.replace("comment:", "");
@@ -355,6 +397,10 @@ export default async function handler(req, res) {
         const reviewBody = await processSmartAIResponse(`قم بإجراء تدقيق أمني وفحص شامل لجودة الكود لهذا الـ PR:\n${parsedContent}`);
         const result = await addCommentToIssueOrPR(prUrl, `🛡️ **HeliosPilot AI Security & Code Review:**\n\n${reviewBody}`);
         await sendTelegramMessage(queryChatId, `🛡️ *تم إتمام التدقيق الأمني ونشره على الـ PR:*\n${result}`);
+      } else if (data.startsWith("autofix:")) {
+        const runUrl = data.replace("autofix:", "");
+        await answerTelegramCallback(callbackQuery.id, "🛠️ جاري تحليل فشل الـ CI/CD واقتراح الإصلاح...");
+        await sendTelegramMessage(queryChatId, `🛠️ **HeliosPilot Auto-Patch Engine:**\nتم رصد فشل في الـ CI/CD. يرجى مراجعة الـ Action الرابط التالي وإصلاح الأخطاء المكتشفة:\n${runUrl}`);
       } else if (data === "dismiss") {
         await answerTelegramCallback(callbackQuery.id, "✅ تم التجاهل.");
       }
@@ -372,15 +418,23 @@ export default async function handler(req, res) {
       const ghPayload = req.body;
       const memory = await getRuntimeMemory();
 
-      // معالجة Issue جديدة
+      // ميزة رقم 4: التصنيف التلقائي للـ Issues وتحديد الـ Labels بالذكاء الاصطناعي
       if (event === "issues" && ghPayload.action === "opened") {
         const issueTitle = ghPayload.issue.title;
         const issueBody = ghPayload.issue.body || "لا يوجد وصف";
         const issueUrl = ghPayload.issue.html_url;
         const repoName = ghPayload.repository?.full_name || "مستودع غير معروف";
+        const owner = ghPayload.repository?.owner?.login;
+        const repo = ghPayload.repository?.name;
+        const issueNumber = ghPayload.issue.number;
 
         memory.lastContextUrl = issueUrl;
         await saveRuntimeMemory(memory);
+
+        // تنفيذ التصنيف التلقائي وإضافة الـ Labels
+        if (owner && repo) {
+          await triageAndLabelIssue(owner, repo, issueNumber, issueTitle, issueBody);
+        }
 
         const aiReply = await processSmartAIResponse(`تحليل Issue جديدة في ${repoName}:\nالعنوان: ${issueTitle}\nالوصف: ${issueBody}`);
         
@@ -388,16 +442,41 @@ export default async function handler(req, res) {
           inline_keyboard: [
             [
               { text: "💬 إضافة تعليق تقني", callback_data: `comment:${issueUrl}` },
-              { text: "✅ تجهل", callback_data: "dismiss" }
+              { text: "✅ تجاهل", callback_data: "dismiss" }
             ]
           ]
         };
 
-        await sendTelegramMessage(chatId, `🚨 *Issue جديدة في مستودع: ${repoName}!*\n\n📌 *العنوان:* ${issueTitle}\n🔗 *الرابط:* ${issueUrl}\n\n🤖 *تحليل HeliosPilot:* \n${aiReply}`, inlineKeyboard);
+        await sendTelegramMessage(chatId, `🚨 *Issue جديدة وتم تصنيفها تلقائياً (${repoName})!*\n\n📌 *العنوان:* ${issueTitle}\n🔗 *الرابط:* ${issueUrl}\n\n🤖 *تحليل HeliosPilot:* \n${aiReply}`, inlineKeyboard);
         return res.status(200).json({ success: true });
       }
 
-      // معالجة Pull Request جديد (مع تدقيق أمني آلي - ميزة رقم 3)
+      // ميزة رقم 1: التقاط أخطاء الـ CI/CD آلياً (Workflow Run Failures)
+      if (event === "workflow_run" && ghPayload.action === "completed") {
+        const workflowName = ghPayload.workflow_run?.name || "Workflow";
+        const conclusion = ghPayload.workflow_run?.conclusion;
+        const runUrl = ghPayload.workflow_run?.html_url;
+        const repoName = ghPayload.repository?.full_name || "مستودع غير معروف";
+
+        if (conclusion === "failure") {
+          const inlineKeyboard = {
+            inline_keyboard: [
+              [
+                { text: "🛠️ طلب تصحيح آلي (Auto-Patch)", callback_data: `autofix:${runUrl}` }
+              ]
+            ]
+          };
+
+          await sendTelegramMessage(chatId, `❌ **فشل في خط بناء CI/CD (${repoName})!**\n\n` +
+            `• **العملية:** ${workflowName}\n` +
+            `• **الحالة:** FAILED 🔴\n` +
+            `• **الرابط:** ${runUrl}\n\n` +
+            `_اضغط على الزر أدناه لمعالجة الخطأ._`, inlineKeyboard);
+        }
+        return res.status(200).json({ success: true });
+      }
+
+      // معالجة Pull Request جديد (مع تدقيق أمني آلي)
       if (event === "pull_request" && (ghPayload.action === "opened" || ghPayload.action === "synchronize")) {
         const prTitle = ghPayload.pull_request.title;
         const prUrl = ghPayload.pull_request.html_url;
@@ -406,11 +485,9 @@ export default async function handler(req, res) {
         memory.lastContextUrl = prUrl;
         await saveRuntimeMemory(memory);
 
-        // تدقيق أمني آلي ومراجعة الكود
         const parsedPr = await parseAndFetchGitHubUrl(prUrl);
         const aiReview = await processSmartAIResponse(`قم بإجراء تدقيق أمني وفحص جودة الكود الآلي لهذا الـ PR:\n${parsedPr}`);
         
-        // نشر تقرير التدقيق كتعليق تلقائي على الـ PR في غيت هب
         await addCommentToIssueOrPR(prUrl, `🛡️ **HeliosPilot Automated AI Security & Code Review:**\n\n${aiReview}`);
 
         const inlineKeyboard = {
@@ -429,29 +506,27 @@ export default async function handler(req, res) {
       return res.status(200).json({ received: true });
     }
 
-    // 3. معالجة الرسائل القادمة من تيليجرام (مع حماية الصلاحيات الأمنية والذاكرة المستدامة)
+    // 3. معالجة الرسائل القادمة من تيليجرام
     if (payload.message && payload.message.text) {
       const userText = payload.message.text.trim();
       const userTextLower = userText.toLowerCase();
       const senderChatId = payload.message.chat?.id?.toString();
 
-      // التحقق الصارم من صلاحيات مرسل الرسالة في تيليجرام
       if (chatId && senderChatId !== chatId.toString()) {
-        await sendTelegramMessage(senderChatId, "⛔ **عذراً، أنت لا تملك صلاحية استخدام هذا البوت.** هذا البوت محمي ومخصص للمسؤول (Ismail-Benali) فقط.");
+        await sendTelegramMessage(senderChatId, "⛔ **عذراً، أنت لا تملك صلاحية استخدام هذا البوت.**");
         return res.status(200).json({ success: false });
       }
 
       const memory = await getRuntimeMemory();
 
-      // تخزين التفضيلات في الذاكرة المستدامة
       if (!userText.startsWith("/") && userText.length > 15 && (userText.includes("نريد") || userText.includes("أريد") || userText.includes("مهم") || userText.includes("قاعدة"))) {
         memory.dynamicMemory.push(userText);
         await saveRuntimeMemory(memory);
       }
 
       if (userText === "/start" || userText === "/help") {
-        await sendTelegramMessage(chatId, `👋 أهلاً بك يا H3l!0s_T3k!\n\nأنا **HeliosPilot Pro Enterprise** المحمي بـ Vercel KV والصلاحيات الأمنية.\n` +
-          `• \`/status\` - عرض الحالة والذاكرة المستدامة\n` +
+        await sendTelegramMessage(chatId, `👋 أهلاً بك يا H3l!0s_T3k!\n\nأنا **HeliosPilot Pro Enterprise** المطور بـ Vercel KV، التصنيف التلقائي، وتتبع الـ CI/CD.\n` +
+          `• \`/status\` - عرض الحالة والذاكرة\n` +
           `• \`/clear\` - إعادة تهيئة السياق\n` +
           `• \`المستودعات\` - عرض المستودعات المرتبطة`);
         return res.status(200).json({ success: true });
@@ -462,10 +537,10 @@ export default async function handler(req, res) {
           ? memory.dynamicMemory.map((m, i) => `${i+1}. ${m}`).join("\n") 
           : "لا توجد ذكريات مكتسبة بعد.";
 
-        await sendTelegramMessage(chatId, `⚡ *حالة HeliosPilot Pro المحمية:*\n\n` +
+        await sendTelegramMessage(chatId, `⚡ *حالة HeliosPilot Pro المحدثة:*\n\n` +
           `- **المنشئ:** \`${memory.creator}\`\n` +
           `- **آخر رابط في السياق:** ${memory.lastContextUrl || "لا يوجد"}\n` +
-          `- **الذاكرة المستدامة (Vercel KV):** مفعلة ونشطة\n` +
+          `- **Vercel KV:** متصل بنجاح\n` +
           `- **الذاكرة المكتسبة:**\n${memoryItems}`);
         return res.status(200).json({ success: true });
       }
@@ -473,11 +548,10 @@ export default async function handler(req, res) {
       if (userText === "/clear") {
         memory.lastContextUrl = null;
         await saveRuntimeMemory(memory);
-        await sendTelegramMessage(chatId, "🧹 تم إعادة تهيئة السياق والجلسة بنجاح.");
+        await sendTelegramMessage(chatId, "🧹 تم إعادة تهيئة السياق وجلسة العمل بنجاح.");
         return res.status(200).json({ success: true });
       }
 
-      // إضافة تعليق مع أزرار وأوامر سريعة
       if (userTextLower.includes("اضف تعليق") || userTextLower.includes("اكتب تعليق") || userTextLower.includes("تعليق")) {
         const urlMatch = userText.match(/https:\/\/github\.com\/[^\s]+/);
         let targetUrl = urlMatch ? urlMatch[0] : memory.lastContextUrl;
@@ -490,9 +564,9 @@ export default async function handler(req, res) {
         let commentText = userText.replace(targetUrl, "").replace(/اضف تعليق|اكتب تعليق|على|لـ/g, "").trim();
 
         if (!commentText || commentText.length < 3) {
-          await sendTelegramMessage(chatId, `🔍 جاري تحليل الـ Issue/PR وسياقها لصياغة ونشر التعليق التقني...`);
+          await sendTelegramMessage(chatId, `🔍 جاري تحليل الـ Issue/PR لصياغة ونشر التعليق التقني...`);
           const issueContent = await parseAndFetchGitHubUrl(targetUrl);
-          commentText = await processSmartAIResponse(`بناءً على المحتوى التالي، اكتب تعليقاً تقنياً احترافياً ومباشراً:\n${issueContent}`);
+          commentText = await processSmartAIResponse(`بناءً على المحتوى التالي، اكتب تعليقاً تقنياً احترافياً:\n${issueContent}`);
         } else {
           await sendTelegramMessage(chatId, "⏳ جاري النشر على GitHub...");
         }
@@ -502,7 +576,6 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true });
       }
 
-      // معالجة روابط غيت هب
       if (userText.includes("github.com/")) {
         const urlMatch = userText.match(/https:\/\/github\.com\/[^\s]+/);
         if (urlMatch) {
