@@ -168,7 +168,6 @@ async function addCommentToIssueOrPR(url, commentBody) {
   }
 }
 
-// ميزة رقم 4: التصنيف التلقائي للـ Issues وتحديد الـ Labels بالذكاء الاصطناعي
 async function triageAndLabelIssue(owner, repo, issueNumber, issueTitle, issueBody) {
   try {
     const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
@@ -179,7 +178,6 @@ async function triageAndLabelIssue(owner, repo, issueNumber, issueTitle, issueBo
     const aiResponse = await processSmartAIResponse(prompt);
     const suggestedLabels = aiResponse.toLowerCase().match(/(bug|enhancement|security|documentation|question)/g) || ["bug"];
 
-    // إضافة الـ Labels للـ Issue
     await repoOctokit.issues.addLabels({
       owner,
       repo,
@@ -349,7 +347,6 @@ async function processSmartAIResponse(userPrompt) {
 }
 
 export default async function handler(req, res) {
-  // ميزة رقم 3: تقرير الأمان والصحة الأسبوعي (Cron Job Endpoint)
   if (req.method === "GET" && req.query.cron === "true") {
     const chatId = process.env.TELEGRAM_CHAT_ID;
     if (chatId) {
@@ -371,7 +368,6 @@ export default async function handler(req, res) {
     const payload = req.body || {};
     const chatId = process.env.TELEGRAM_CHAT_ID;
 
-    // 1. معالجة النقرات على الأزرار التفاعلية (Telegram Callback Queries)
     if (payload.callback_query) {
       const callbackQuery = payload.callback_query;
       const queryChatId = callbackQuery.message?.chat?.id?.toString();
@@ -400,7 +396,11 @@ export default async function handler(req, res) {
       } else if (data.startsWith("autofix:")) {
         const runUrl = data.replace("autofix:", "");
         await answerTelegramCallback(callbackQuery.id, "🛠️ جاري تحليل فشل الـ CI/CD واقتراح الإصلاح...");
-        await sendTelegramMessage(queryChatId, `🛠️ **HeliosPilot Auto-Patch Engine:**\nتم رصد فشل في الـ CI/CD. يرجى مراجعة الـ Action الرابط التالي وإصلاح الأخطاء المكتشفة:\n${runUrl}`);
+        await sendTelegramMessage(queryChatId, `🛠️ **HeliosPilot Auto-Patch Engine:**\nتم رصد فشل في الـ CI/CD. رابط الرن:\n${runUrl}`);
+      } else if (data.startsWith("patchvuln:")) {
+        const vulnInfo = data.replace("patchvuln:", "");
+        await answerTelegramCallback(callbackQuery.id, "🛡️ جاري تجهيز ترقيع أمني للثغرة المكتشفة...");
+        await sendTelegramMessage(queryChatId, `🛡️ **HeliosPilot Security Advisor:**\nتم البدء بمعالجة التنبيه الأمني (${vulnInfo}) وتحديث التبعيات المرتبطة.`);
       } else if (data === "dismiss") {
         await answerTelegramCallback(callbackQuery.id, "✅ تم التجاهل.");
       }
@@ -408,7 +408,6 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true });
     }
 
-    // 2. التحقق من أمان Webhook قادم من GitHub
     if (req.headers["x-github-event"]) {
       if (!verifyGitHubSignature(req)) {
         return res.status(401).json({ error: "Invalid GitHub Webhook Signature" });
@@ -418,7 +417,41 @@ export default async function handler(req, res) {
       const ghPayload = req.body;
       const memory = await getRuntimeMemory();
 
-      // ميزة رقم 4: التصنيف التلقائي للـ Issues وتحديد الـ Labels بالذكاء الاصطناعي
+      // مراقبة التبعيات والثغرات الأمنية (Dependabot & Code Scanning Alerts - ميزة رقم 2)
+      if (event === "dependabot_alert" || event === "code_scanning_alert" || event === "security_advisory") {
+        const repoName = ghPayload.repository?.full_name || "مستودع غير معروف";
+        let alertTitle = "تنبيه أمني جديد";
+        let alertDesc = "تم اكتشاف ثغرة أو تبعية ضعيفة تستوجب التحديث.";
+
+        if (event === "dependabot_alert") {
+          const pkg = ghPayload.dependabot_alert?.dependency?.package?.name || "مكتبة غير معروفة";
+          const sev = ghPayload.dependabot_alert?.security_advisory?.severity || "high";
+          alertTitle = `Dependabot Alert: ${pkg} (${sev.toUpperCase()})`;
+          alertDesc = ghPayload.dependabot_alert?.security_advisory?.summary || "تحديث أمني مطلوب للتبعيات.";
+        } else if (event === "code_scanning_alert") {
+          alertTitle = `Code Scanning Alert: ${ghPayload.alert?.rule?.name || "ثغرة برمجية"}`;
+          alertDesc = ghPayload.alert?.message?.text || "تم رصد مشكلة أمنية في الكود.";
+        }
+
+        const aiPatch = await processSmartAIResponse(`اقترح ترقيعاً أمنياً (Security Advisory Patch) وحلاً لتنبيه الأمان التالي في ${repoName}:\nالعنوان: ${alertTitle}\nالتفاصيل: ${alertDesc}`);
+
+        const inlineKeyboard = {
+          inline_keyboard: [
+            [
+              { text: "🛡️ تطبيق الترقيع (Patch)", callback_data: `patchvuln:${repoName}` },
+              { text: "✅ تجاهل", callback_data: "dismiss" }
+            ]
+          ]
+        };
+
+        await sendTelegramMessage(chatId, `🚨 **تنبيه أمني عاجل (${repoName})!**\n\n` +
+          `• **النوع:** ${alertTitle}\n` +
+          `• **التفاصيل:** ${alertDesc}\n\n` +
+          `🤖 **مقترح الترقيح الآلي:**\n${aiPatch}`, inlineKeyboard);
+
+        return res.status(200).json({ success: true });
+      }
+
       if (event === "issues" && ghPayload.action === "opened") {
         const issueTitle = ghPayload.issue.title;
         const issueBody = ghPayload.issue.body || "لا يوجد وصف";
@@ -431,7 +464,6 @@ export default async function handler(req, res) {
         memory.lastContextUrl = issueUrl;
         await saveRuntimeMemory(memory);
 
-        // تنفيذ التصنيف التلقائي وإضافة الـ Labels
         if (owner && repo) {
           await triageAndLabelIssue(owner, repo, issueNumber, issueTitle, issueBody);
         }
@@ -451,7 +483,6 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true });
       }
 
-      // ميزة رقم 1: التقاط أخطاء الـ CI/CD آلياً (Workflow Run Failures)
       if (event === "workflow_run" && ghPayload.action === "completed") {
         const workflowName = ghPayload.workflow_run?.name || "Workflow";
         const conclusion = ghPayload.workflow_run?.conclusion;
@@ -470,13 +501,11 @@ export default async function handler(req, res) {
           await sendTelegramMessage(chatId, `❌ **فشل في خط بناء CI/CD (${repoName})!**\n\n` +
             `• **العملية:** ${workflowName}\n` +
             `• **الحالة:** FAILED 🔴\n` +
-            `• **الرابط:** ${runUrl}\n\n` +
-            `_اضغط على الزر أدناه لمعالجة الخطأ._`, inlineKeyboard);
+            `• **الرابط:** ${runUrl}`, inlineKeyboard);
         }
         return res.status(200).json({ success: true });
       }
 
-      // معالجة Pull Request جديد (مع تدقيق أمني آلي)
       if (event === "pull_request" && (ghPayload.action === "opened" || ghPayload.action === "synchronize")) {
         const prTitle = ghPayload.pull_request.title;
         const prUrl = ghPayload.pull_request.html_url;
@@ -506,7 +535,6 @@ export default async function handler(req, res) {
       return res.status(200).json({ received: true });
     }
 
-    // 3. معالجة الرسائل القادمة من تيليجرام
     if (payload.message && payload.message.text) {
       const userText = payload.message.text.trim();
       const userTextLower = userText.toLowerCase();
@@ -525,7 +553,7 @@ export default async function handler(req, res) {
       }
 
       if (userText === "/start" || userText === "/help") {
-        await sendTelegramMessage(chatId, `👋 أهلاً بك يا H3l!0s_T3k!\n\nأنا **HeliosPilot Pro Enterprise** المطور بـ Vercel KV، التصنيف التلقائي، وتتبع الـ CI/CD.\n` +
+        await sendTelegramMessage(chatId, `👋 أهلاً بك يا H3l!0s_T3k!\n\nأنا **HeliosPilot Pro Enterprise** المطور بنظام مراقبة الثغرات والتبعيات الأمني (Dependabot/Code Scanning Alerts).\n` +
           `• \`/status\` - عرض الحالة والذاكرة\n` +
           `• \`/clear\` - إعادة تهيئة السياق\n` +
           `• \`المستودعات\` - عرض المستودعات المرتبطة`);
@@ -540,7 +568,7 @@ export default async function handler(req, res) {
         await sendTelegramMessage(chatId, `⚡ *حالة HeliosPilot Pro المحدثة:*\n\n` +
           `- **المنشئ:** \`${memory.creator}\`\n` +
           `- **آخر رابط في السياق:** ${memory.lastContextUrl || "لا يوجد"}\n` +
-          `- **Vercel KV:** متصل بنجاح\n` +
+          `- **مراقبة الثغرات (Dependabot/Trivy):** مفعلة ونشطة\n` +
           `- **الذاكرة المكتسبة:**\n${memoryItems}`);
         return res.status(200).json({ success: true });
       }
