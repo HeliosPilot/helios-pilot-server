@@ -6,7 +6,7 @@
     "start": "probot run ./index.js"
   },
   "dependencies": {
-    "openai": "^4.0.0",
+    "groq-sdk": "^0.7.0",
     "node-fetch": "^2.7.0",
     "probot": "^13.0.0"
   }
