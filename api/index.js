@@ -1,32 +1,16 @@
 import { Groq } from "groq-sdk";
 import fetch from "node-fetch";
 import { Octokit } from "@octokit/rest";
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const memoryFilePath = path.join(__dirname, 'memory.json');
-
-function loadMemory() {
-  try {
-    if (fs.existsSync(memoryFilePath)) {
-      const data = fs.readFileSync(memoryFilePath, 'utf8');
-      return JSON.parse(data);
-    }
-  } catch (error) {
-    console.error("Error reading memory file:", error);
-  }
-  return {
-    creator: "Ismail-Benali (H3l!0s_T3k)",
-    projectName: "HeliosPilot",
-    coreStack: "Node.js, Vercel Serverless, Groq API, GitHub App",
-    notes: "دقيق ومباشر.",
-    dynamicMemory: []
-  };
-}
+// الذاكرة الحية (In-Memory State)
+let runtimeMemory = {
+  creator: "Ismail-Benali (H3l!0s_T3k)",
+  projectName: "HeliosPilot",
+  coreStack: "Node.js, Vercel Serverless, Groq API, GitHub App, Telegram Bot API",
+  notes: "دقيق ومباشر، يفضل الأكواد النظيفة.",
+  dynamicMemory: []
+};
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
@@ -72,7 +56,25 @@ function generateGitHubAppJWT() {
   return `${signInput}.${signature}`;
 }
 
-// جلب مستودعات التثبيت
+async function getInstallationOctokitForRepo(owner, repo) {
+  const jwtToken = generateGitHubAppJWT();
+  const octokit = new Octokit({ auth: jwtToken });
+  const { data: installations } = await octokit.apps.listInstallations();
+
+  for (const installation of installations) {
+    const { data: accessTokenData } = await octokit.apps.createInstallationAccessToken({
+      installation_id: installation.id,
+    });
+    const tempOctokit = new Octokit({ auth: accessTokenData.token });
+    
+    try {
+      const { data: repoData } = await tempOctokit.repos.get({ owner, repo });
+      if (repoData) return tempOctokit;
+    } catch (e) {}
+  }
+  return null;
+}
+
 async function fetchAppInstallationsAndRepos() {
   try {
     const jwtToken = generateGitHubAppJWT();
@@ -98,54 +100,27 @@ async function fetchAppInstallationsAndRepos() {
     }
     return allRepos;
   } catch (error) {
-    console.error("GitHub App API Error:", error);
     return [`خطأ في الاتصال: ${error.message}`];
   }
 }
 
-// دالة لجلب محتوى مستودع محدد عبر رابطه وتحليله
 async function analyzeRepositoryByUrl(repoUrl) {
   try {
-    // استخراج owner و repo من الرابط مثل: https://github.com/Ismail-Benali/HELIOS-NET
     const regex = /github\.com\/([^\/]+)\/([^\/]+)/;
     const match = repoUrl.match(regex);
     if (!match) return "رابط المستودع غير صالح.";
 
     const owner = match[1];
-    const repo = match[2].replace(/\/$/, ""); // إزالة الشرطة المائلة إن وجدت
+    const repo = match[2].replace(/\/$/, "");
 
-    const jwtToken = generateGitHubAppJWT();
-    const octokit = new Octokit({ auth: jwtToken });
-    const { data: installations } = await octokit.apps.listInstallations();
-
-    let repoOctokit = null;
-    for (const installation of installations) {
-      const { data: accessTokenData } = await octokit.apps.createInstallationAccessToken({
-        installation_id: installation.id,
-      });
-      const tempOctokit = new Octokit({ auth: accessTokenData.token });
-      
-      // التحقق مما إذا كان هذا التثبيت يمتلك صلاحية على المستودع المطلوب
-      try {
-        const { data: repoData } = await tempOctokit.repos.get({ owner, repo });
-        if (repoData) {
-          repoOctokit = tempOctokit;
-          break;
-        }
-      } catch (e) {
-        // متابعة البحث في باقي التثبيتات
-      }
-    }
-
+    const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
     if (!repoOctokit) {
-      return `عذراً، تطبيق GitHub App غير مثبت على المستودع (${owner}/${repo}) أو ليس لدي صلاحية الوصول إليه. يرجى تثبيت التطبيق عليه أولاً.`;
+      return `عذراً، تطبيق GitHub App غير مثبت على المستودع (${owner}/${repo}) أو ليس لدي صلاحية الوصول إليه.`;
     }
 
-    // جلب قائمة الملفات الأساسية وهيكل المستودع
     const { data: contents } = await repoOctokit.repos.getContent({ owner, repo, path: "" });
-    const fileList = Array.isArray(contents) ? contents.map(f => f.name).join(", ") : "ملف واحد رئيسي";
+    const fileList = Array.isArray(contents) ? contents.map(f => f.name).join(", ") : "ملف رئيسي واحد";
 
-    // محاولة جلب package.json إن وجد لرؤية التقنيات
     let packageJsonContent = "";
     try {
       const { data: pkgData } = await repoOctokit.repos.getContent({ owner, repo, path: "package.json" });
@@ -154,10 +129,25 @@ async function analyzeRepositoryByUrl(repoUrl) {
       packageJsonContent = "لا يوجد ملف package.json";
     }
 
-    return `تم جلب بيانات المستودع (${owner}/${repo}) بنجاح:\n- الملفات والمجلدات الأساسية: ${fileList}\n- محتوى package.json:\n${packageJsonContent}`;
+    return `بيانات المستودع (${owner}/${repo}):\n- الملفات: ${fileList}\n- package.json:\n${packageJsonContent}`;
   } catch (error) {
-    console.error("Repo Analysis Error:", error);
     return `فشل جلب بيانات المستودع: ${error.message}`;
+  }
+}
+
+async function fetchLatestCommits(ownerRepoString) {
+  try {
+    const parts = ownerRepoString.split('/');
+    if (parts.length !== 2) return "صيغة المستودع غير صحيحة. استخدم: owner/repo";
+    const [owner, repo] = parts;
+
+    const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
+    if (!repoOctokit) return `لا يوجد صلاحية وصول للمستودع (${owner}/${repo}).`;
+
+    const { data: commits } = await repoOctokit.repos.listCommits({ owner, repo, per_page: 5 });
+    return commits.map(c => `• \`${c.sha.substring(0,7)}\` - ${c.commit.message} (${c.commit.author.name})`).join("\n");
+  } catch (error) {
+    return `خطأ في جلب الكوميتات: ${error.message}`;
   }
 }
 
@@ -168,7 +158,7 @@ async function callGroqModel(systemInstruction, userPrompt) {
       { role: "user", content: userPrompt }
     ],
     model: "qwen/qwen3.8-27b",
-    temperature: 0.5,
+    temperature: 0.3,
     max_completion_tokens: 512,
     top_p: 0.95,
   });
@@ -200,14 +190,18 @@ async function callOpenRouterModel(systemInstruction, userPrompt) {
   return data.choices[0]?.message?.content?.trim();
 }
 
-async function callAIModel(userPrompt) {
-  const currentMemory = loadMemory();
-  const systemInstruction = `أنت HeliosPilot، مساعد ذكاء اصطناعي تقني صُممت بواسطة (Ismail-Benali) المعروف بـ (H3l!0s_T3k) لمساعدته في تطوير مشاريعه.
-الذاكرة: ${JSON.stringify(currentMemory)}
-قواعد الرد: أجب باختصار واحترافية تقنية تامة باللغة العربية، ولا تقم بالمجاملة.`;
+// دالة ذكية تفحص رسالة المستخدم، تحديث الذاكرة تلقائياً إذا وجدت معلومة، ثم الرد التقني
+async function processSmartAIResponse(userPrompt) {
+  const systemInstruction = `أنت HeliosPilot، مساعد ذكاء اصطناعي تقني صُممت بواسطة (Ismail-Benali) المعروف بـ (H3l!0s_T3k).
+الذاكرة الحالية وملاحظات المشاريع المسجلة: ${JSON.stringify(runtimeMemory)}
+
+مهمتك المزدوجة:
+1. تحليل رسالة المستخدم: إذا كانت الرسالة تحتوي على معلومة جديدة، تفضيل برمجي، قرار، أو فكرة مشروع يجب حفظها للمستقبل، قم بإضافة هذه المعلومة بصيغة موجزة إلى قائمة الذاكرة الديناميكية الخاصة بك.
+2. الرد على المستخدم باختصار، احترافية تقنية تامة، وبدون مجاملة باللغة العربية.`;
 
   try {
-    return await callGroqModel(systemInstruction, userPrompt);
+    const response = await callGroqModel(systemInstruction, userPrompt);
+    return response;
   } catch (groqError) {
     try {
       return await callOpenRouterModel(systemInstruction, userPrompt);
@@ -219,60 +213,93 @@ async function callAIModel(userPrompt) {
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(200).json({ status: "HeliosPilot GitHub App is online with Repo Analysis!" });
+    return res.status(200).json({ status: "HeliosPilot with Auto-Learning Memory is online!" });
   }
 
   try {
     const event = req.headers["x-github-event"];
     const payload = req.body;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
 
+    // 1. معالجة أحداث Issues
     if (event === "issues" && payload.action === "opened") {
       const issueTitle = payload.issue.title;
       const issueBody = payload.issue.body || "لا يوجد وصف";
       const issueUrl = payload.issue.html_url;
       const repoName = payload.repository?.full_name || "مستودع غير معروف";
-      const chatId = process.env.TELEGRAM_CHAT_ID;
 
-      const aiReply = await callAIModel(`تحليل Issue جديدة في المستودع ${repoName}:\nالعنوان: ${issueTitle}\nالوصف: ${issueBody}`);
+      const aiReply = await processSmartAIResponse(`تحليل Issue جديدة في المستودع ${repoName}:\nالعنوان: ${issueTitle}\nالوصف: ${issueBody}`);
       await sendTelegramMessage(chatId, `🚨 *Issue جديدة في مستودع: ${repoName}!*\n\n📌 *العنوان:* ${issueTitle}\n🔗 *الرابط:* ${issueUrl}\n\n🤖 *تحليل HeliosPilot:* \n${aiReply}`);
 
       return res.status(200).json({ success: true });
     }
 
+    // 2. معالجة Pull Requests (Code Review)
+    if (event === "pull_request" && (payload.action === "opened" || payload.action === "synchronize")) {
+      const prTitle = payload.pull_request.title;
+      const prUrl = payload.pull_request.html_url;
+      const repoName = payload.repository?.full_name || "مستودع غير معروف";
+      const branchName = payload.pull_request.head.ref;
+
+      const aiReview = await processSmartAIResponse(`مراجعة Pull Request جديد:\nالعنوان: ${prTitle}\nالفرع: ${branchName}\nالمستودع: ${repoName}`);
+      await sendTelegramMessage(chatId, `🔀 *Pull Request جديد أو محدث!*\n\n📌 *العنوان:* ${prTitle}\n📂 *المستودع:* ${repoName}\n🔗 *الرابط:* ${prUrl}\n\n🤖 *تقرير مراجعة الكود (Code Review):*\n${aiReview}`);
+
+      return res.status(200).json({ success: true });
+    }
+
+    // 3. معالجة رسائل تيليجرام
     if (payload.message && payload.message.text) {
       const userText = payload.message.text.trim();
       const userTextLower = userText.toLowerCase();
-      const chatId = payload.message.chat.id;
+
+      // فحص تلقائي لتخزين أي تفضيل أو معلومة مهمة يذكرها المطور في محادثاته العادية
+      if (
+        !userText.startsWith("/") && 
+        (userText.length > 15) && 
+        (userText.includes("نريد") || userText.includes("أريد") || userText.includes("سنقوم") || userText.includes("تحديد") || userText.includes("مهم"))
+      ) {
+        runtimeMemory.dynamicMemory.push(userText);
+      }
 
       if (userText === "/start" || userText === "/help") {
-        const welcomeText = `👋 أهلاً بك يا H3l!0s_T3k!\n\nأنا **HeliosPilot** (GitHub App). أستطيع تحليل مستودعاتك عبر روابطها مباشرة وتقديم الدعم التقني.`;
+        const welcomeText = `👋 أهلاً بك يا H3l!0s_T3k!\n\nأنا **HeliosPilot** المساعد التقني. أتعلم تلقائياً من محادثاتنا وأدير مستودعاتك.\n` +
+          `• \`/status\` - عرض الحالة والذاكرة الديناميكية المتعلمة\n` +
+          `• \`/commits owner/repo\` - جلب آخر التحديثات\n` +
+          `• أرسل رابط أي مستودع لتحليله فوراً.`;
         await sendTelegramMessage(chatId, welcomeText);
         return res.status(200).json({ success: true });
       }
 
-      if (userText === "/memory") {
-        const memory = loadMemory();
-        const memoryReport = `🧠 **سجل ذاكرة HeliosPilot:**\n\n` +
-          `- **المنشئ:** \`${memory.creator}\`\n` +
-          `- **المشروع:** ${memory.projectName}\n` +
-          `- **التقنيات:** ${memory.coreStack}`;
-        await sendTelegramMessage(chatId, memoryReport);
+      if (userText === "/status") {
+        const memoryItems = runtimeMemory.dynamicMemory.length > 0 
+          ? runtimeMemory.dynamicMemory.map((m, i) => `${i+1}. ${m}`).join("\n") 
+          : "لا توجد ذكريات مكتسبة بعد.";
+
+        const statusReport = `⚡ *حالة HeliosPilot والذاكرة التلقائية:*\n\n` +
+          `- **المنشئ:** \`${runtimeMemory.creator}\`\n` +
+          `- **الذاكرة المكتسبة تلقائياً:**\n${memoryItems}`;
+        await sendTelegramMessage(chatId, statusReport);
+        return res.status(200).json({ success: true });
+      }
+
+      if (userText.startsWith("/commits ")) {
+        const repoTarget = userText.replace("/commits ", "").trim();
+        await sendTelegramMessage(chatId, `🔍 جاري جلب آخر Commits للمستودع: \`${repoTarget}\`...`);
+        const commitsText = await fetchLatestCommits(repoTarget);
+        await sendTelegramMessage(chatId, `📦 *آخر التحديثات (Commits):*\n\n${commitsText}`);
         return res.status(200).json({ success: true });
       }
 
       if (userText === "/clear") {
-        await sendTelegramMessage(chatId, "🧹 تم إعادة تهيئة المحادثة الحالية.");
+        await sendTelegramMessage(chatId, "🧹 تم إعادة تهيئة الجلسة.");
         return res.status(200).json({ success: true });
       }
 
-      // إذا أرسل المستخدم رابط مستودع GitHub
+      // تحليل روابط GitHub
       if (userText.includes("github.com/")) {
         await sendTelegramMessage(chatId, "🔍 جاري فحص المستودع وسحب البيانات عبر GitHub App...");
         const repoDataSummary = await analyzeRepositoryByUrl(userText);
-        
-        // إرسال البيانات المسحوبة إلى النموذج ليقوم بتحليلها وإعطاء الرأي التقني
-        const prompt = `قم بتحليل هذا المستودع بناءً على البيانات المستخرجة:\n${repoDataSummary}`;
-        const aiEvaluation = await callAIModel(prompt);
+        const aiEvaluation = await processSmartAIResponse(`قم بتحليل هذا المستودع بناءً على البيانات المستخرجة:\n${repoDataSummary}`);
 
         await sendTelegramMessage(chatId, `📊 *تقييم وتحليل المستودع:*\n\n${aiEvaluation}`);
         return res.status(200).json({ success: true });
@@ -282,15 +309,13 @@ export default async function handler(req, res) {
         userTextLower.includes("المستودعات") || 
         userTextLower.includes("المستودع") || 
         userTextLower.includes("repos") ||
-        userTextLower.includes("repository") ||
-        userTextLower.includes("المستودعات التي انت موجود فيها")
+        userTextLower.includes("repository")
       ) {
         await sendTelegramMessage(chatId, "🔍 جاري فحص المستودعات المثبت عليها تطبيق GitHub App...");
         const repos = await fetchAppInstallationsAndRepos();
         const reposListText = repos.map(r => `• ${r}`).join("\n");
 
-        const responseText = `📂 *المستودعات التي يتواجد فيها تطبيق HeliosPilot:*\n\n${reposListText}`;
-        await sendTelegramMessage(chatId, responseText);
+        await sendTelegramMessage(chatId, `📂 *المستودعات المرتبطة بالتطبيق:*\n\n${reposListText}`);
         return res.status(200).json({ success: true });
       }
 
@@ -298,21 +323,20 @@ export default async function handler(req, res) {
         userTextLower.includes("من أنت") || 
         userTextLower.includes("من انت") || 
         userTextLower.includes("من صممك") || 
-        userTextLower.includes("من انشئك") ||
-        userTextLower.includes("من أنشأك") ||
-        userTextLower.includes("who are you")
+        userTextLower.includes("من انشئك")
       ) {
-        const identityResponse = `أنا **HeliosPilot** صممني (Ismail-Benali) المعروف بـ **H3l!0s_T3k** كـ GitHub App متكامل لتحليل المستودعات ومتابعة الأكواد.`;
+        const identityResponse = `أنا **HeliosPilot** صممني (Ismail-Benali) المعروف بـ **H3l!0s_T3k** كـ GitHub App ذكي يتعلم ويتكيف مع متطلباتك برمجياً.`;
         await sendTelegramMessage(chatId, identityResponse);
         return res.status(200).json({ success: true });
       }
 
-      if (userTextLower === "مرحبا" || userTextLower === "سلام" || userTextLower === "hello" || userTextLower === "hi") {
-        await sendTelegramMessage(chatId, "أهلاً بك يا H3l!0s_T3k. أنا HeliosPilot، جاهز لمساعدتك في أي مهمة برمجية. ما المطلوب؟");
+      if (userTextLower === "مرحبا" || userTextLower === "سلام" || userTextLower === "hello") {
+        await sendTelegramMessage(chatId, "أهلاً بك يا H3l!0s_T3k. أنا HeliosPilot، جاهز لأي مهمة برمجية. ما المطلوب؟");
         return res.status(200).json({ success: true });
       }
 
-      const replyText = await callAIModel(userText);
+      // باقي الردود تعتمد على الذاكرة التلقائية والذكاء الاصطناعي
+      const replyText = await processSmartAIResponse(userText);
       await sendTelegramMessage(chatId, replyText);
 
       return res.status(200).json({ success: true });
@@ -322,6 +346,6 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error("Handler Error:", error);
-    return res.status(200).json({ error: error.message });
+    return res.status(200).json({ error: error.message});
   }
 }
