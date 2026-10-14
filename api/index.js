@@ -4,7 +4,6 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// إعداد المسارات لقراءة ملف الذاكرة محلياً
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const memoryFilePath = path.join(__dirname, 'memory.json');
@@ -27,7 +26,6 @@ function loadMemory() {
   };
 }
 
-// تهيئة عميل Groq
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
@@ -43,7 +41,6 @@ async function sendTelegramMessage(chatId, text) {
   });
 }
 
-// 1. محاولة الاتصال عبر Groq الأساسي
 async function callGroqModel(systemInstruction, userPrompt) {
   const chatCompletion = await groq.chat.completions.create({
     messages: [
@@ -58,7 +55,6 @@ async function callGroqModel(systemInstruction, userPrompt) {
   return chatCompletion.choices[0]?.message?.content?.trim();
 }
 
-// 2. محاولة الاتصال عبر OpenRouter للطوارئ (Fallback)
 async function callOpenRouterModel(systemInstruction, userPrompt) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OpenRouter API key is not set");
@@ -70,7 +66,7 @@ async function callOpenRouterModel(systemInstruction, userPrompt) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: "google/gemini-flash-1.5", // أو أي نموذج مجاني تضعه على OpenRouter
+      model: "google/gemini-flash-1.5",
       messages: [
         { role: "system", content: systemInstruction },
         { role: "user", content: userPrompt }
@@ -84,41 +80,26 @@ async function callOpenRouterModel(systemInstruction, userPrompt) {
   return data.choices[0]?.message?.content?.trim();
 }
 
-// الدالة الموحدة مع التبديل التلقائي
 async function callAIModel(userPrompt) {
   const currentMemory = loadMemory();
-  const systemInstruction = `أنت HeliosPilot، مساعد ذكاء اصطناعي تقني صُممت بواسطة (Ismail-Benali) المعروف بـ (H3l!0s_T3k).
-    
-الذاكرة الحالية للنظام:
-- المنشئ: ${currentMemory.creator}
-- اسم المشروع: ${currentMemory.projectName}
-- التقنيات: ${currentMemory.coreStack}
-- ملاحظات ثابتة: ${currentMemory.notes}
-- ذاكرة ديناميكية: ${JSON.stringify(currentMemory.dynamicMemory)}
-
-قواعد الرد:
-1. أجب باختصار واحترافية تقنية تامة باللغة العربية.
-2. لا تقم بالمجاملة وكن مباشراً.
-3. استخدم مربعات الأكواد (code blocks) عند البرمجة.`;
+  const systemInstruction = `أنت HeliosPilot، مساعد ذكاء اصطناعي تقني صُممت بواسطة (Ismail-Benali) المعروف بـ (H3l!0s_T3k) لمساعدته في تطوير مشاريعه.
+الذاكرة: ${JSON.stringify(currentMemory)}
+قواعد الرد: أجب باختصار واحترافية تقنية تامة باللغة العربية، ولا تقم بالمجاملة.`;
 
   try {
-    // المحاولة الأولى عبر Groq
     return await callGroqModel(systemInstruction, userPrompt);
   } catch (groqError) {
-    console.warn("Groq failed, switching to OpenRouter fallback...", groqError.message);
     try {
-      // المحاولة الاحتياطية عبر OpenRouter
       return await callOpenRouterModel(systemInstruction, userPrompt);
     } catch (openRouterError) {
-      console.error("OpenRouter Fallback Error:", openRouterError);
-      return `عذراً، فشلت جميع خدمات الذكاء الاصطناعي (Groq & OpenRouter): ${openRouterError.message}`;
+      return `عذراً، حدث خطأ في خدمات الذكاء الاصطناعي.`;
     }
   }
 }
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(200).json({ status: "HeliosPilot is online with Dual-AI Fallback!" });
+    return res.status(200).json({ status: "HeliosPilot is online!" });
   }
 
   try {
@@ -139,15 +120,12 @@ export default async function handler(req, res) {
 
     if (payload.message && payload.message.text) {
       const userText = payload.message.text.trim();
+      const userTextLower = userText.toLowerCase();
       const chatId = payload.message.chat.id;
 
+      // 1. الأوامر السريعة
       if (userText === "/start" || userText === "/help") {
-        const welcomeText = `👋 أهلاً بك يا H3l!0s_T3k! أنا **HeliosPilot** (مدعوم بنظام الحماية المزدوجة).\n\n` +
-          `🛠️ **صممني:** Ismail-Benali (\`H3l!0s_T3k\`)\n` +
-          `📌 **الأوامر:**\n` +
-          `• \`/memory\` - عرض الذاكرة الحالية.\n` +
-          `• \`/clear\` - إعادة ضبط السياق.`;
-        
+        const welcomeText = `👋 أهلاً بك يا H3l!0s_T3k!\n\nأنا **HeliosPilot** صممني (Ismail-Benali) المعروف بـ **H3l!0s_T3k** لمساعدته في تطوير مشاريعه التقنية، وكذالك دوري هو مساعدتك في إدارة الأكواد وتحليل المشكلات.`;
         await sendTelegramMessage(chatId, welcomeText);
         return res.status(200).json({ success: true });
       }
@@ -157,9 +135,7 @@ export default async function handler(req, res) {
         const memoryReport = `🧠 **سجل ذاكرة HeliosPilot:**\n\n` +
           `- **المنشئ:** \`${memory.creator}\`\n` +
           `- **المشروع:** ${memory.projectName}\n` +
-          `- **التقنيات:** ${memory.coreStack}\n` +
-          `- **الذاكرة الديناميكية:** ${JSON.stringify(memory.dynamicMemory)}`;
-
+          `- **التقنيات:** ${memory.coreStack}`;
         await sendTelegramMessage(chatId, memoryReport);
         return res.status(200).json({ success: true });
       }
@@ -169,6 +145,27 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true });
       }
 
+      // 2. الرد الفوري والدقيق على أسئلة الهوية ومن صممه (بدون الاعتماد على مزاج الموديل)
+      if (
+        userTextLower.includes("من أنت") || 
+        userTextLower.includes("من انت") || 
+        userTextLower.includes("من صممك") || 
+        userTextLower.includes("من انشئك") ||
+        userTextLower.includes("من أنشأك") ||
+        userTextLower.includes("who are you")
+      ) {
+        const identityResponse = `أنا **HeliosPilot** صممني (Ismail-Benali) المعروف بـ **H3l!0s_T3k** لمساعدته في تطوير مشاريعه التقنية، وكذالك دوري هو مساعدتك في إدارة الأكواد، تحليل مشكلات GitHub، وتقديم الدعم التقني بدقة واختصار.`;
+        await sendTelegramMessage(chatId, identityResponse);
+        return res.status(200).json({ success: true });
+      }
+
+      // 3. الرد على التحيات البسيطة (مثل مرحبا أو hello)
+      if (userTextLower === "مرحبا" || userTextLower === "سلام" || userTextLower === "hello" || userTextLower === "hi") {
+        await sendTelegramMessage(chatId, "أهلاً بك يا H3l!0s_T3k. أنا HeliosPilot، جاهز لمساعدتك في أي مهمة برمجية. ما المطلوب؟");
+        return res.status(200).json({ success: true });
+      }
+
+      // 4. باقي الأسئلة التقنية تُرسل للذكاء الاصطناعي
       const replyText = await callAIModel(userText);
       await sendTelegramMessage(chatId, replyText);
 
