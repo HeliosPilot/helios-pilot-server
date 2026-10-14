@@ -1,4 +1,11 @@
+import OpenAI from "openai";
 import fetch from "node-fetch";
+
+const openai = new OpenAI({
+  apiKey: process.env.NVIDIA_API_KEY,
+  baseURL: "https://integrate.api.nvidia.com/v1",
+  timeout: 15000, // مهلة 15 ثانية لمكتبة OpenAI
+});
 
 async function sendTelegramMessage(chatId, text) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -12,53 +19,26 @@ async function sendTelegramMessage(chatId, text) {
 }
 
 async function callNvidiaNim(promptText) {
-  const apiKey = process.env.NVIDIA_API_KEY;
-  
-  // ضبط مهلة زمنية قدرها 10 ثوانٍ لمنع تعليق الطلب
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
-
   try {
-    const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-        "Accept": "application/json"
-      },
-      body: JSON.stringify({
-        model: "deepseek-ai/deepseek-v4.1-flash",
-        messages: [
-          { role: "system", content: "أنت مساعد تقني. أجب باختصار شديد ومباشر بالعربية." },
-          { role: "user", content: promptText }
-        ],
-        temperature: 0.5,
-        max_tokens: 150, // تقليل الرموز لتسريع الرد وتجنب الـ Timeout
-        stream: false
-      }),
-      signal: controller.signal
+    const completion = await openai.chat.completions.create({
+      model: "deepseek-ai/deepseek-v4.1-flash",
+      messages: [
+        { role: "system", content: "أنت مساعد تقني. أجب باختصار ومباشرة بالعربية." },
+        { role: "user", content: promptText }
+      ],
+      temperature: 0.5,
+      max_tokens: 200,
     });
 
-    clearTimeout(timeout);
-    const rawText = await response.text();
+    const content = completion.choices[0]?.message?.content;
+    return content ? content.trim() : "لم يتم استلام رد.";
 
-    if (!response.ok) {
-      console.error("NVIDIA Error:", rawText);
-      return `عذراً، خطأ من خادم NVIDIA (${response.status}).`;
+  } catch (error) {
+    console.error("OpenAI SDK Connection Error:", error);
+    if (error.code === 'ETIMEDOUT' || error.status === 404) {
+      return "عذراً، تعذر الوصول إلى خادم NVIDIA (انانتهى الوقت أو خطأ في الاتصال).";
     }
-
-    const data = JSON.parse(rawText);
-    const content = data.choices?.[0]?.message?.content;
-    
-    return content ? content.trim() : "لم يتم استلام رد من النموذج.";
-
-  } catch (err) {
-    clearTimeout(timeout);
-    if (err.name === 'AbortError') {
-      return "عذراً، استغرق خادم NVIDIA وقتاً طويلاً جداً في الرد (Timeout). يجدر المحاولة مجدداً.";
-    }
-    console.error("Fetch Exception Details:", err);
-    return `عذراً، حدث خطأ تقني: ${err.message}`;
+    return `عذراً، حدث خطأ: ${error.message}`;
   }
 }
 
