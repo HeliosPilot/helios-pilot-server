@@ -1,4 +1,10 @@
+import OpenAI from "openai";
 import fetch from "node-fetch";
+
+const openai = new OpenAI({
+  apiKey: process.env.NVIDIA_API_KEY,
+  baseURL: "https://integrate.api.nvidia.com/v1",
+});
 
 async function sendTelegramMessage(chatId, text) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -12,37 +18,26 @@ async function sendTelegramMessage(chatId, text) {
 }
 
 async function callNvidiaNim(promptText) {
-  const apiKey = process.env.NVIDIA_API_KEY;
-  
   try {
-    const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: "deepseek-ai/deepseek-r1",
-        messages: [
-          { role: "system", content: "أنت مساعد تقني ومطور برمجيات. أجب باختصار بالعربية." },
-          { role: "user", content: promptText }
-        ],
-        temperature: 0.5,
-        max_tokens: 256,
-        stream: false
-      })
+    const completion = await openai.chat.completions.create({
+      model: "deepseek-ai/deepseek-r1",
+      messages: [
+        { role: "system", content: "أنت مساعد تقني ومطور برمجيات. أجب باختصار ودقة بالعربية." },
+        { role: "user", content: promptText }
+      ],
+      temperature: 0.5,
+      max_tokens: 512,
     });
 
-    const data = await response.json();
-    if (!response.ok) {
-      console.error("NVIDIA API Error Response:", data);
-      return `عذراً، حدث خطأ من بوابة NVIDIA: ${data.error?.message || response.status}`;
-    }
+    const content = completion.choices[0]?.message?.content || "";
+    
+    // إزالة وسوم التفكير الخاصة بـ DeepSeek ليكون الرد نظيفاً على تلغرام
+    const cleanContent = content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    return cleanContent || content;
 
-    return data.choices?.[0]?.message?.content || "لم يتم استلام رد من النموذج.";
-  } catch (err) {
-    console.error("Fetch Exception:", err);
-    return "عذراً، حدث استثناء أثناء الاتصال بخدمة الذكاء الاصطناعي.";
+  } catch (error) {
+    console.error("OpenAI/NVIDIA Error:", error);
+    return `عذراً، حدث خطأ أثناء الاتصال بالذكاء الاصطناعي: ${error.message}`;
   }
 }
 
@@ -52,13 +47,27 @@ export default async function handler(req, res) {
   }
 
   try {
+    const event = req.headers["x-github-event"];
     const payload = req.body;
 
+    // 1. التعامل مع أحداث GitHub (Issues)
+    if (event === "issues" && payload.action === "opened") {
+      const issueTitle = payload.issue.title;
+      const issueBody = payload.issue.body || "لا يوجد وصف";
+      const issueUrl = payload.issue.html_url;
+      const chatId = process.env.TELEGRAM_CHAT_ID;
+
+      const aiReply = await callNvidiaNim(`العنوان: ${issueTitle}\nالوصف: ${issueBody}`);
+      await sendTelegramMessage(chatId, `🚨 *Issue جديدة!*\n\n📌 *العنوان:* ${issueTitle}\n🔗 *الرابط:* ${issueUrl}\n\n🤖 *تحليل الذكاء الاصطناعي:* \n${aiReply}`);
+
+      return res.status(200).json({ success: true });
+    }
+
+    // 2. التعامل مع رسائل Telegram المباشرة
     if (payload.message && payload.message.text) {
       const userText = payload.message.text;
       const chatId = payload.message.chat.id;
 
-      // الرد على المستخدم أولاً أو معالجة الطلب بأمان
       const replyText = await callNvidiaNim(userText);
       await sendTelegramMessage(chatId, replyText);
 
@@ -69,7 +78,6 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error("Critical Handler Error:", error);
-    // إرجاع 200 لتليجرام حتى لا يقوم بتكرار الطلب المزعج وإيقاف خطأ 500
     return res.status(200).json({ error: error.message });
   }
 }
