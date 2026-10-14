@@ -1,13 +1,14 @@
 {
-  "name": "helios-pilot-server",
+  "name": "heliospilot",
   "version": "1.0.0",
+  "description": "Telegram-GitHub integration bot with dynamic memory and dual-AI fallback",
+  "main": "api/index.js",
   "type": "module",
-  "scripts": {
-    "start": "probot run ./index.js"
-  },
   "dependencies": {
     "groq-sdk": "^0.7.0",
-    "node-fetch": "^2.7.0",
-    "probot": "^13.0.0"
+    "node-fetch": "^3.3.2"
+  },
+  "engines": {
+    "node": ">=18.x"
   }
 }
