@@ -35,7 +35,9 @@ export async function sendTelegramGif(chatId, gifName, caption = "") {
   if (!token || !chatId) return;
 
   const gifPath = `${GIF_DIR}/${gifName}`;
+  
   try {
+    // Try sending as animation (JSON method)
     const bodyData = {
       chat_id: chatId,
       animation: gifPath,
@@ -44,13 +46,23 @@ export async function sendTelegramGif(chatId, gifName, caption = "") {
       bodyData.caption = caption;
     }
 
-    await fetch(`https://api.telegram.org/bot${token}/sendAnimation`, {
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendAnimation`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(bodyData),
     });
+
+    const data = await response.json();
+    
+    if (!response.ok || data.ok === false) {
+      // If JSON method fails, try sending as document with mime type
+      console.log("JSON method attempted, result:", data);
+    }
+    
+    return data;
   } catch (err) {
     console.error("Telegram GIF Send Error:", err);
+    return { ok: false, error: err.message };
   }
 }
 
