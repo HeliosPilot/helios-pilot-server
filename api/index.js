@@ -379,10 +379,15 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true });
       }
 
+      try {
       const replyText = await processSmartAIResponse(userText, memory.dynamicMemory);
-      await sendTelegramMessage(chatId, replyText);
+      await sendTelegramMessage(chatId, replyText ?? "🤖 HeliosPilot: تم استقبال رسالتك ولكناجهز رداً تقنياً...");
+    } catch (aiError) {
+      captureException(aiError, { context: "processSmartAIResponse" });
+      await sendTelegramMessage(chatId, "🤖 HeliosPilot: استقبلتُ رسالتك ولكنواجهت صعوبة في المعالجة التقنية حالياً. حاول مرة أخرى later. ⚡");
+    }
 
-      return res.status(200).json({ success: true });
+    return res.status(200).json({ success: true });
     }
 
     return res.status(200).json({ received: true });
