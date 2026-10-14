@@ -1,10 +1,4 @@
-import OpenAI from "openai";
 import fetch from "node-fetch";
-
-const openai = new OpenAI({
-  apiKey: process.env.NVIDIA_API_KEY,
-  baseURL: "https://integrate.api.nvidia.com/v1",
-});
 
 async function sendTelegramMessage(chatId, text) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -17,10 +11,39 @@ async function sendTelegramMessage(chatId, text) {
   });
 }
 
+// دالة الاتصال المباشر بـ NVIDIA NIM عبر fetch لتجنب مشاكل مكتبة OpenAI
+async function callNvidiaNim(promptText) {
+  const apiKey = process.env.NVIDIA_API_KEY;
+  
+  const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: "deepseek-ai/deepseek-r1",
+      messages: [
+        { role: "system", content: "أنت مساعد تقني ذكي ومطور محترف. أجب باختصار ودقة بالعربية." },
+        { role: "user", content: promptText }
+      ],
+      temperature: 0.5,
+      max_tokens: 512,
+      stream: false
+    })
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error?.message || `NVIDIA API Error: ${response.status}`);
+  }
+
+  return data.choices[0].message.content;
+}
+
 export default async function handler(req, res) {
-  // تليجرام وجيت هاب يرسلان الطلبات دائماً بتقنية POST
   if (req.method !== "POST") {
-    return res.status(200).json({ status: "HeliosPilot Server is Active and Running!" });
+    return res.status(200).json({ status: "HeliosPilot Server is Active!" });
   }
 
   try {
@@ -34,17 +57,7 @@ export default async function handler(req, res) {
       const issueUrl = payload.issue.html_url;
       const chatId = process.env.TELEGRAM_CHAT_ID;
 
-      const completion = await openai.chat.completions.create({
-        model: "deepseek-ai/deepseek-r1",
-        messages: [
-          { role: "system", content: "أنت مساعد تقني ذكي لمدير المشاريع. حلل المشكلة واقترح حلاً تقنياً موجزاً بالعربية." },
-          { role: "user", content: `العنوان: ${issueTitle}\nالوصف: ${issueBody}` }
-        ],
-        temperature: 0.5,
-        max_tokens: 512,
-      });
-
-      const aiReply = completion.choices[0].message.content;
+      const aiReply = await callNvidiaNim(`العنوان: ${issueTitle}\nالوصف: ${issueBody}`);
       await sendTelegramMessage(chatId, `🚨 *Issue جديدة!*\n\n📌 *العنوان:* ${issueTitle}\n🔗 *الرابط:* ${issueUrl}\n\n🤖 *تحليل الذكاء الاصطناعي:* \n${aiReply}`);
 
       return res.status(200).json({ success: true });
@@ -55,17 +68,7 @@ export default async function handler(req, res) {
       const userText = payload.message.text;
       const chatId = payload.message.chat.id;
 
-      const completion = await openai.chat.completions.create({
-        model: "deepseek-ai/deepseek-r1",
-        messages: [
-          { role: "system", content: "أنت مساعد تقني ذكي للمطورين. أجب باحترافية وبشكل دقيق." },
-          { role: "user", content: userText }
-        ],
-        temperature: 0.5,
-        max_tokens: 512,
-      });
-
-      const replyText = completion.choices[0].message.content;
+      const replyText = await callNvidiaNim(userText);
       await sendTelegramMessage(chatId, replyText);
 
       return res.status(200).json({ success: true });
