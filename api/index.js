@@ -8,9 +8,15 @@ const DEFAULT_MEMORY = {
   creator: "Ismail-Benali (H3l!0s_T3k)",
   projectName: "HeliosPilot Pro Enterprise",
   coreStack: "Node.js, Vercel Serverless, Groq, OpenRouter, GitHub App, Telegram API, Vercel KV",
-  rules: "دقيق، مباشر، تقني بحت، بدون مجاملة، التركيز المطلق على الأداء والوعي بالصلاحيات والأمان.",
+  rules: "ذكاء عام متكامل، قادر على النقاش في شتى المواضيع (علوم، تقنية، فلسفة، تخطيط، حياة، أمان)، دقيق، مباشر، عميق التحليل، بدون مجاملة فارغة.",
+  userProfile: {
+    name: "Ismail-Benali",
+    alias: "H3l!0s_T3k",
+    interests: ["Cybersecurity", "ASM", "Artificial Intelligence", "System Architecture", "General Science", "Philosophy", "Tech Innovation"]
+  },
   lastContextUrl: null,
-  dynamicMemory: []
+  dynamicMemory: [],
+  notes: []
 };
 
 async function getRuntimeMemory() {
@@ -294,8 +300,8 @@ async function callGroqModel(systemInstruction, userPrompt) {
       { role: "user", content: userPrompt }
     ],
     model: "qwen/qwen3.8-27b",
-    temperature: 0.3,
-    max_completion_tokens: 512,
+    temperature: 0.5,
+    max_completion_tokens: 1024,
     top_p: 0.95,
   });
   return chatCompletion.choices[0]?.message?.content?.trim();
@@ -317,7 +323,7 @@ async function callOpenRouterModel(systemInstruction, userPrompt) {
         { role: "system", content: systemInstruction },
         { role: "user", content: userPrompt }
       ],
-      max_tokens: 512
+      max_tokens: 1024
     })
   });
 
@@ -328,12 +334,13 @@ async function callOpenRouterModel(systemInstruction, userPrompt) {
 
 async function processSmartAIResponse(userPrompt) {
   const memory = await getRuntimeMemory();
-  const systemInstruction = `أنت HeliosPilot Pro، مساعد ذكاء اصطناعي تقني صُممت بواسطة (Ismail-Benali) المعروف بـ (H3l!0s_T3k).
-الذاكرة الحية ومفهوم السياق الحالي: ${JSON.stringify(memory)}
+  const systemInstruction = `أنت HeliosPilot Pro، مساعد ذكاء اصطناعي شامل ومتطور صُممت بواسطة (Ismail-Benali) المعروف بـ (H3l!0s_T3k).
+الذاكرة الحية المستدامة وملف المستخدم: ${JSON.stringify(memory)}
 
-قواعد الرد الذكي:
-1. كن واعياً بالصلاحيات والأمان: وضح دائماً الصلاحيات والتحقق.
-2. أجب باختصار، بدقة تقنية تامة، وباللغة العربية، وبدون أي مجاملة.`;
+قواعد الحوار الشامل والذكي:
+1. أنت لست مقتصراً على البرمجة وغيت هب فقط؛ يمكنك النقاش بحرية وعمق في أي موضوع يطرحه المستخدم (علوم، تقنية، فلسفة، تخطيط حياتي، استراتيجيات، تفكير نقدي، أو محادثة عامة).
+2. كن ذكياً، عميق التحليل، مباشر، وباللغة العربية الفصحى الواضحة، وبدون مجاملة فارغة.
+3. تذكر دائماً تفضيلات المستخدم وملفه الشخصي المضمن في الذاكرة الحية.`;
 
   try {
     return await callGroqModel(systemInstruction, userPrompt);
@@ -361,7 +368,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method !== "POST") {
-    return res.status(200).json({ status: "HeliosPilot Secure Enterprise Engine is online!" });
+    return res.status(200).json({ status: "HeliosPilot Universal Conversational & Secure Engine is online!" });
   }
 
   try {
@@ -417,7 +424,6 @@ export default async function handler(req, res) {
       const ghPayload = req.body;
       const memory = await getRuntimeMemory();
 
-      // مراقبة التبعيات والثغرات الأمنية (Dependabot & Code Scanning Alerts - ميزة رقم 2)
       if (event === "dependabot_alert" || event === "code_scanning_alert" || event === "security_advisory") {
         const repoName = ghPayload.repository?.full_name || "مستودع غير معروف";
         let alertTitle = "تنبيه أمني جديد";
@@ -547,14 +553,19 @@ export default async function handler(req, res) {
 
       const memory = await getRuntimeMemory();
 
-      if (!userText.startsWith("/") && userText.length > 15 && (userText.includes("نريد") || userText.includes("أريد") || userText.includes("مهم") || userText.includes("قاعدة"))) {
+      // حفظ أي ملاحظات أو أفكار عامة يذكرها المستخدم في الذاكرة المستدامة
+      if (!userText.startsWith("/") && userText.length > 10) {
         memory.dynamicMemory.push(userText);
+        // الاحتفاظ بآخر 30 مدخلة في الذاكرة الحية لعدم تضخم الـ KV
+        if (memory.dynamicMemory.length > 30) {
+          memory.dynamicMemory.shift();
+        }
         await saveRuntimeMemory(memory);
       }
 
       if (userText === "/start" || userText === "/help") {
-        await sendTelegramMessage(chatId, `👋 أهلاً بك يا H3l!0s_T3k!\n\nأنا **HeliosPilot Pro Enterprise** المطور بنظام مراقبة الثغرات والتبعيات الأمني (Dependabot/Code Scanning Alerts).\n` +
-          `• \`/status\` - عرض الحالة والذاكرة\n` +
+        await sendTelegramMessage(chatId, `👋 أهلاً بك يا H3l!0s_T3k!\n\nأنا **HeliosPilot Pro Enterprise**. يمكننا الحديث في أي موضوع (تقنية، علوم، فلسفة، تخطيط، أو إدارة مشاريع كـ HELIOS-NET).\n` +
+          `• \`/status\` - عرض الحالة والذاكرة المستدامة\n` +
           `• \`/clear\` - إعادة تهيئة السياق\n` +
           `• \`المستودعات\` - عرض المستودعات المرتبطة`);
         return res.status(200).json({ success: true });
@@ -562,21 +573,21 @@ export default async function handler(req, res) {
 
       if (userText === "/status") {
         const memoryItems = memory.dynamicMemory.length > 0 
-          ? memory.dynamicMemory.map((m, i) => `${i+1}. ${m}`).join("\n") 
-          : "لا توجد ذكريات مكتسبة بعد.";
+          ? memory.dynamicMemory.slice(-5).map((m, i) => `${i+1}. ${m}`).join("\n") 
+          : "لا توجد ذكريات مسجلة بعد.";
 
-        await sendTelegramMessage(chatId, `⚡ *حالة HeliosPilot Pro المحدثة:*\n\n` +
+        await sendTelegramMessage(chatId, `⚡ *حالة HeliosPilot Pro الشاملة:*\n\n` +
           `- **المنشئ:** \`${memory.creator}\`\n` +
           `- **آخر رابط في السياق:** ${memory.lastContextUrl || "لا يوجد"}\n` +
-          `- **مراقبة الثغرات (Dependabot/Trivy):** مفعلة ونشطة\n` +
-          `- **الذاكرة المكتسبة:**\n${memoryItems}`);
+          `- ** Vercel KV:** متصل بنجاح للذاكرة المستدامة\n` +
+          `- **آخر الحوارات المحفوظة:**\n${memoryItems}`);
         return res.status(200).json({ success: true });
       }
 
       if (userText === "/clear") {
         memory.lastContextUrl = null;
         await saveRuntimeMemory(memory);
-        await sendTelegramMessage(chatId, "🧹 تم إعادة تهيئة السياق وجلسة العمل بنجاح.");
+        await sendTelegramMessage(chatId, "🧹 تم إعادة تهيئة السياق ونطاق المحادثة بنجاح.");
         return res.status(200).json({ success: true });
       }
 
@@ -635,6 +646,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true });
       }
 
+      // محادثة عامة في أي موضوع (تقنية، علوم، فلسفة، تخطيط، إلخ)
       const replyText = await processSmartAIResponse(userText);
       await sendTelegramMessage(chatId, replyText);
 
