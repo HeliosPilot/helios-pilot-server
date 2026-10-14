@@ -2,22 +2,41 @@ import { Groq } from "groq-sdk";
 import fetch from "node-fetch";
 import { Octokit } from "@octokit/rest";
 import crypto from 'crypto';
+import { kv } from '@vercel/kv';
 
-// الذاكرة الحية مع إدارة سياق المحادثات والتفضيلات
-let runtimeMemory = {
+// الذاكرة الافتراضية كاحتياط في حال لم يتم ضبط Vercel KV
+const DEFAULT_MEMORY = {
   creator: "Ismail-Benali (H3l!0s_T3k)",
   projectName: "HeliosPilot Pro Enterprise",
-  coreStack: "Node.js, Vercel Serverless, Groq, OpenRouter, GitHub App, Telegram API",
-  rules: "دقيق، مباشر، تقني بحت، بدون مجاملة، التركيز المطلق على الأداء والوعي بالصلاحيات.",
-  lastContextUrl: null, // تتبع آخر رابط تم مناقشته في الشات
+  coreStack: "Node.js, Vercel Serverless, Groq, OpenRouter, GitHub App, Telegram API, Vercel KV",
+  rules: "دقيق، مباشر، تقني بحت، بدون مجاملة، التركيز المطلق على الأداء والوعي بالصلاحيات والأمان.",
+  lastContextUrl: null,
   dynamicMemory: []
 };
+
+async function getRuntimeMemory() {
+  try {
+    const mem = await kv.get("helios_runtime_memory");
+    return mem ? mem : DEFAULT_MEMORY;
+  } catch (err) {
+    console.error("KV Read Error, using default memory:", err);
+    return DEFAULT_MEMORY;
+  }
+}
+
+async function saveRuntimeMemory(mem) {
+  try {
+    await kv.set("helios_runtime_memory", mem);
+  } catch (err) {
+    console.error("KV Save Error:", err);
+  }
+}
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-async function sendTelegramMessage(chatId, text) {
+async function sendTelegramMessage(chatId, text, replyMarkup = null) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token || !chatId) return;
 
@@ -25,14 +44,37 @@ async function sendTelegramMessage(chatId, text) {
   for (let i = 0; i < text.length; i += MAX_LENGTH) {
     const chunk = text.substring(i, i + MAX_LENGTH);
     try {
+      const bodyData = {
+        chat_id: chatId,
+        text: chunk,
+        parse_mode: "Markdown"
+      };
+      if (replyMarkup) {
+        bodyData.reply_markup = replyMarkup;
+      }
+
       await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, text: chunk, parse_mode: "Markdown" }),
+        body: JSON.stringify(bodyData),
       });
     } catch (err) {
       console.error("Telegram Send Error:", err);
     }
+  }
+}
+
+async function answerTelegramCallback(callbackQueryId, text) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token || !callbackQueryId) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ callback_query_id: callbackQueryId, text: text }),
+    });
+  } catch (err) {
+    console.error("Answer Callback Error:", err);
   }
 }
 
@@ -43,7 +85,11 @@ function verifyGitHubSignature(req) {
 
   const hmac = crypto.createHmac("sha256", secret);
   const digest = `sha256=${hmac.update(JSON.stringify(req.body)).digest("hex")}`;
-  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
+  try {
+    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
+  } catch (e) {
+    return false;
+  }
 }
 
 function generateGitHubAppJWT() {
@@ -98,42 +144,38 @@ async function getInstallationOctokitForRepo(owner, repo) {
   return null;
 }
 
-// إضافة تعليق على Issue مع التحقق التلقائي من صلاحيات الكتابة
-async function addCommentToIssue(url, commentBody) {
+async function addCommentToIssueOrPR(url, commentBody) {
   try {
-    const issueMatch = url.match(/github\.com\/([^\/]+)\/([^\/]+)\/issues\/(\d+)/);
-    if (!issueMatch) return "⚠️ رابط الـ Issue غير صالح لإضافة التعليق.";
+    const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)\/(issues|pull)\/(\d+)/);
+    if (!match) return "⚠️ رابط GitHub غير صالح لإضافة التعليق.";
 
-    const [, owner, repo, issueNumber] = issueMatch;
+    const [, owner, repo, type, number] = match;
     const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
     
     if (!repoOctokit) {
-      return `🛑 **صلاحيات مفقودة:** المستودع \`${owner}/${repo}\` غير مقترن بـ GitHub App أو لا أملك صلاحية الكتابة عليه. يرجى التثبيت أو منح الصلاحيات من إعدادات الـ App.`;
+      return `🛑 **صلاحيات مفقودة:** المستودع \`${owner}/${repo}\` غير مقترن بـ GitHub App أو لا أملك صلاحية الكتابة عليه.`;
     }
 
     await repoOctokit.issues.createComment({
       owner,
       repo,
-      issue_number: parseInt(issueNumber),
+      issue_number: parseInt(number),
       body: commentBody
     });
 
-    return `✅ **تم النشر:** تم إضافة التعليق بنجاح على الـ Issue #${issueNumber} في (\`${owner}/${repo}\`).`;
+    return `✅ **تم النشر بنجاح:** أُضيف التعليق على ${type === 'pull' ? 'PR' : 'Issue'} #${number} في (\`${owner}/${repo}\`).`;
   } catch (error) {
     return `❌ **فشل النشر:** ${error.message}`;
   }
 }
 
-// قراءة وتحليل بيانات غيت هب
 async function parseAndFetchGitHubUrl(url) {
   try {
     const issueMatch = url.match(/github\.com\/([^\/]+)\/([^\/]+)\/issues\/(\d+)/);
     if (issueMatch) {
       const [, owner, repo, issueNumber] = issueMatch;
       const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
-      if (!repoOctokit) {
-        return `🛑 المستودع \`${owner}/${repo}\` غير مرتبط بـ GitHub App. لا يمكن القراءة منه.`;
-      }
+      if (!repoOctokit) return `🛑 المستودع \`${owner}/${repo}\` غير مرتبط بـ GitHub App.`;
 
       const { data: issue } = await repoOctokit.issues.get({ owner, repo, issue_number: parseInt(issueNumber) });
       const { data: comments } = await repoOctokit.issues.listComments({ owner, repo, issue_number: parseInt(issueNumber) });
@@ -257,11 +299,12 @@ async function callOpenRouterModel(systemInstruction, userPrompt) {
 }
 
 async function processSmartAIResponse(userPrompt) {
+  const memory = await getRuntimeMemory();
   const systemInstruction = `أنت HeliosPilot Pro، مساعد ذكاء اصطناعي تقني صُممت بواسطة (Ismail-Benali) المعروف بـ (H3l!0s_T3k).
-الذاكرة الحية ومفهوم السياق الحالي: ${JSON.stringify(runtimeMemory)}
+الذاكرة الحية ومفهوم السياق الحالي: ${JSON.stringify(memory)}
 
 قواعد الرد الذكي:
-1. كن واعياً بالصلاحيات: إذا طُلِب إجراء تغيير أو تعليق على مستودع غير مرتبط، وضح الصلاحيات المطلوبة.
+1. كن واعياً بالصلاحيات والأمان: وضح دائماً الصلاحيات والتحقق.
 2. أجب باختصار، بدقة تقنية تامة، وباللغة العربية، وبدون أي مجاملة.`;
 
   try {
@@ -277,118 +320,210 @@ async function processSmartAIResponse(userPrompt) {
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(200).json({ status: "HeliosPilot Smart Context Engine is online!" });
+    return res.status(200).json({ status: "HeliosPilot Secure Enterprise Engine is online!" });
   }
 
   try {
-    if (!verifyGitHubSignature(req)) {
-      return res.status(401).json({ error: "Invalid GitHub Webhook Signature" });
-    }
-
-    const event = req.headers["x-github-event"];
-    const payload = req.body;
+    const payload = req.body || {};
     const chatId = process.env.TELEGRAM_CHAT_ID;
 
-    // 1. معالجة الأحداث القادمة من GitHub
-    if (event === "issues" && payload.action === "opened") {
-      const issueTitle = payload.issue.title;
-      const issueBody = payload.issue.body || "لا يوجد وصف";
-      const issueUrl = payload.issue.html_url;
-      const repoName = payload.repository?.full_name || "مستودع غير معروف";
+    // 1. معالجة النقرات على الأزرار التفاعلية (Telegram Callback Queries)
+    if (payload.callback_query) {
+      const callbackQuery = payload.callback_query;
+      const queryChatId = callbackQuery.message?.chat?.id?.toString();
 
-      runtimeMemory.lastContextUrl = issueUrl; // حفظ الرابط في السياق
+      // التحقق من صلاحيات المستخدم في التيليجرام
+      if (chatId && queryChatId !== chatId.toString()) {
+        await answerTelegramCallback(callbackQuery.id, "⛔ غير مسموح لك باستخدام هذه الأزرار.");
+        return res.status(200).json({ success: false });
+      }
 
-      const aiReply = await processSmartAIResponse(`تحليل Issue جديدة في ${repoName}:\nالعنوان: ${issueTitle}\nالوصف: ${issueBody}`);
-      await sendTelegramMessage(chatId, `🚨 *Issue جديدة في مستودع: ${repoName}!*\n\n📌 *العنوان:* ${issueTitle}\n🔗 *الرابط:* ${issueUrl}\n\n🤖 *تحليل HeliosPilot:* \n${aiReply}`);
+      const data = callbackQuery.data;
+      const messageId = callbackQuery.message?.message_id;
+
+      if (data.startsWith("comment:")) {
+        const prOrIssueUrl = data.replace("comment:", "");
+        await answerTelegramCallback(callbackQuery.id, "⏳ جاري توليد ونشر التعليق التقني...");
+        const parsedContent = await parseAndFetchGitHubUrl(prOrIssueUrl);
+        const commentBody = await processSmartAIResponse(`بناءً على المحتوى التالي، اكتب تعليقاً تقنياً واحترافياً:\n${parsedContent}`);
+        const result = await addCommentToIssueOrPR(prOrIssueUrl, commentBody);
+        await sendTelegramMessage(queryChatId, `🤖 *رد أوتوماتيكي بناءً على طلبك:*\n${result}`);
+      } else if (data.startsWith("review:")) {
+        const prUrl = data.replace("review:", "");
+        await answerTelegramCallback(callbackQuery.id, "🔍 جاري مراجعة الكود وفحص الأمان...");
+        const parsedContent = await parseAndFetchGitHubUrl(prUrl);
+        const reviewBody = await processSmartAIResponse(`قم بإجراء تدقيق أمني وفحص شامل لجودة الكود لهذا الـ PR:\n${parsedContent}`);
+        const result = await addCommentToIssueOrPR(prUrl, `🛡️ **HeliosPilot AI Security & Code Review:**\n\n${reviewBody}`);
+        await sendTelegramMessage(queryChatId, `🛡️ *تم إتمام التدقيق الأمني ونشره على الـ PR:*\n${result}`);
+      } else if (data === "dismiss") {
+        await answerTelegramCallback(callbackQuery.id, "✅ تم التجاهل.");
+      }
 
       return res.status(200).json({ success: true });
     }
 
-    if (event === "pull_request" && (payload.action === "opened" || payload.action === "synchronize")) {
-      const prTitle = payload.pull_request.title;
-      const prUrl = payload.pull_request.html_url;
-      const repoName = payload.repository?.full_name || "مستودع غير معروف";
+    // 2. التحقق من أمان Webhook قادم من GitHub
+    if (req.headers["x-github-event"]) {
+      if (!verifyGitHubSignature(req)) {
+        return res.status(401).json({ error: "Invalid GitHub Webhook Signature" });
+      }
 
-      runtimeMemory.lastContextUrl = prUrl;
+      const event = req.headers["x-github-event"];
+      const ghPayload = req.body;
+      const memory = await getRuntimeMemory();
 
-      const aiReview = await processSmartAIResponse(`مراجعة Pull Request جديد:\nالعنوان: ${prTitle}\nالمستودع: ${repoName}`);
-      await sendTelegramMessage(chatId, `🔀 *Pull Request جديد أو محدث!*\n\n📌 *العنوان:* ${prTitle}\n📂 *المستودع:* ${repoName}\n🔗 *الرابط:* ${prUrl}\n\n🤖 *تقرير مراجعة الكود:*\n${aiReview}`);
+      // معالجة Issue جديدة
+      if (event === "issues" && ghPayload.action === "opened") {
+        const issueTitle = ghPayload.issue.title;
+        const issueBody = ghPayload.issue.body || "لا يوجد وصف";
+        const issueUrl = ghPayload.issue.html_url;
+        const repoName = ghPayload.repository?.full_name || "مستودع غير معروف";
 
-      return res.status(200).json({ success: true });
+        memory.lastContextUrl = issueUrl;
+        await saveRuntimeMemory(memory);
+
+        const aiReply = await processSmartAIResponse(`تحليل Issue جديدة في ${repoName}:\nالعنوان: ${issueTitle}\nالوصف: ${issueBody}`);
+        
+        const inlineKeyboard = {
+          inline_keyboard: [
+            [
+              { text: "💬 إضافة تعليق تقني", callback_data: `comment:${issueUrl}` },
+              { text: "✅ تجهل", callback_data: "dismiss" }
+            ]
+          ]
+        };
+
+        await sendTelegramMessage(chatId, `🚨 *Issue جديدة في مستودع: ${repoName}!*\n\n📌 *العنوان:* ${issueTitle}\n🔗 *الرابط:* ${issueUrl}\n\n🤖 *تحليل HeliosPilot:* \n${aiReply}`, inlineKeyboard);
+        return res.status(200).json({ success: true });
+      }
+
+      // معالجة Pull Request جديد (مع تدقيق أمني آلي - ميزة رقم 3)
+      if (event === "pull_request" && (ghPayload.action === "opened" || ghPayload.action === "synchronize")) {
+        const prTitle = ghPayload.pull_request.title;
+        const prUrl = ghPayload.pull_request.html_url;
+        const repoName = ghPayload.repository?.full_name || "مستودع غير معروف";
+
+        memory.lastContextUrl = prUrl;
+        await saveRuntimeMemory(memory);
+
+        // تدقيق أمني آلي ومراجعة الكود
+        const parsedPr = await parseAndFetchGitHubUrl(prUrl);
+        const aiReview = await processSmartAIResponse(`قم بإجراء تدقيق أمني وفحص جودة الكود الآلي لهذا الـ PR:\n${parsedPr}`);
+        
+        // نشر تقرير التدقيق كتعليق تلقائي على الـ PR في غيت هب
+        await addCommentToIssueOrPR(prUrl, `🛡️ **HeliosPilot Automated AI Security & Code Review:**\n\n${aiReview}`);
+
+        const inlineKeyboard = {
+          inline_keyboard: [
+            [
+              { text: "🛡️ نشر مراجعة أمنية جديدة", callback_data: `review:${prUrl}` },
+              { text: "💬 إضافة تعليق", callback_data: `comment:${prUrl}` }
+            ]
+          ]
+        };
+
+        await sendTelegramMessage(chatId, `🔀 *Pull Request جديد (تم إجراء التدقيق الأمني الآلي)!*\n\n📌 *العنوان:* ${prTitle}\n📂 *المستودع:* ${repoName}\n🔗 *الرابط:* ${prUrl}\n\n🤖 *تقرير التدقيق الأمني:* \n${aiReview}`, inlineKeyboard);
+        return res.status(200).json({ success: true });
+      }
+
+      return res.status(200).json({ received: true });
     }
 
-    // 2. معالجة الرسائل القادمة من تيليجرام
+    // 3. معالجة الرسائل القادمة من تيليجرام (مع حماية الصلاحيات الأمنية والذاكرة المستدامة)
     if (payload.message && payload.message.text) {
       const userText = payload.message.text.trim();
       const userTextLower = userText.toLowerCase();
+      const senderChatId = payload.message.chat?.id?.toString();
 
-      // تخزين التفضيلات التلقائية
+      // التحقق الصارم من صلاحيات مرسل الرسالة في تيليجرام
+      if (chatId && senderChatId !== chatId.toString()) {
+        await sendTelegramMessage(senderChatId, "⛔ **عذراً، أنت لا تملك صلاحية استخدام هذا البوت.** هذا البوت محمي ومخصص للمسؤول (Ismail-Benali) فقط.");
+        return res.status(200).json({ success: false });
+      }
+
+      const memory = await getRuntimeMemory();
+
+      // تخزين التفضيلات في الذاكرة المستدامة
       if (!userText.startsWith("/") && userText.length > 15 && (userText.includes("نريد") || userText.includes("أريد") || userText.includes("مهم") || userText.includes("قاعدة"))) {
-        runtimeMemory.dynamicMemory.push(userText);
+        memory.dynamicMemory.push(userText);
+        await saveRuntimeMemory(memory);
       }
 
       if (userText === "/start" || userText === "/help") {
-        await sendTelegramMessage(chatId, `👋 أهلاً بك يا H3l!0s_T3k!\n\nأنا **HeliosPilot Pro**. أدير السياق والتعليقات والصلاحيات لجميع مستودعاتك.\n` +
-          `• \`/status\` - عرض الحالة والذاكرة والمستودع الحالي في السياق\n` +
-          `• اكتب "اضف تعليق" لمتابعة العمل على آخر Issue تم التطرق إليها.`);
+        await sendTelegramMessage(chatId, `👋 أهلاً بك يا H3l!0s_T3k!\n\nأنا **HeliosPilot Pro Enterprise** المحمي بـ Vercel KV والصلاحيات الأمنية.\n` +
+          `• \`/status\` - عرض الحالة والذاكرة المستدامة\n` +
+          `• \`/clear\` - إعادة تهيئة السياق\n` +
+          `• \`المستودعات\` - عرض المستودعات المرتبطة`);
         return res.status(200).json({ success: true });
       }
 
       if (userText === "/status") {
-        const memoryItems = runtimeMemory.dynamicMemory.length > 0 
-          ? runtimeMemory.dynamicMemory.map((m, i) => `${i+1}. ${m}`).join("\n") 
+        const memoryItems = memory.dynamicMemory.length > 0 
+          ? memory.dynamicMemory.map((m, i) => `${i+1}. ${m}`).join("\n") 
           : "لا توجد ذكريات مكتسبة بعد.";
 
-        await sendTelegramMessage(chatId, `⚡ *حالة HeliosPilot Pro:*\n\n` +
-          `- **المنشئ:** \`${runtimeMemory.creator}\`\n` +
-          `- **آخر رابط في السياق:** ${runtimeMemory.lastContextUrl || "لا يوجد"}\n` +
+        await sendTelegramMessage(chatId, `⚡ *حالة HeliosPilot Pro المحمية:*\n\n` +
+          `- **المنشئ:** \`${memory.creator}\`\n` +
+          `- **آخر رابط في السياق:** ${memory.lastContextUrl || "لا يوجد"}\n` +
+          `- **الذاكرة المستدامة (Vercel KV):** مفعلة ونشطة\n` +
           `- **الذاكرة المكتسبة:**\n${memoryItems}`);
         return res.status(200).json({ success: true });
       }
 
       if (userText === "/clear") {
-        runtimeMemory.lastContextUrl = null;
-        await sendTelegramMessage(chatId, "🧹 تم إعادة تهيئة السياق والجلسة.");
+        memory.lastContextUrl = null;
+        await saveRuntimeMemory(memory);
+        await sendTelegramMessage(chatId, "🧹 تم إعادة تهيئة السياق والجلسة بنجاح.");
         return res.status(200).json({ success: true });
       }
 
-      // معالجة طلبات إضافة التعليق مع الاستفادة من سياق المحادثة المباشر
+      // إضافة تعليق مع أزرار وأوامر سريعة
       if (userTextLower.includes("اضف تعليق") || userTextLower.includes("اكتب تعليق") || userTextLower.includes("تعليق")) {
         const urlMatch = userText.match(/https:\/\/github\.com\/[^\s]+/);
-        let targetUrl = urlMatch ? urlMatch[0] : runtimeMemory.lastContextUrl;
+        let targetUrl = urlMatch ? urlMatch[0] : memory.lastContextUrl;
 
         if (!targetUrl) {
-          await sendTelegramMessage(chatId, "⚠️ لم أجد رابط Issue في الرسالة أو في سياق المحادثة السابق. يرجى تزويدي بالرابط.");
+          await sendTelegramMessage(chatId, "⚠️ لم أجد رابط Issue أو PR في الرسالة أو السياق السابق.");
           return res.status(200).json({ success: true });
         }
 
         let commentText = userText.replace(targetUrl, "").replace(/اضف تعليق|اكتب تعليق|على|لـ/g, "").trim();
 
         if (!commentText || commentText.length < 3) {
-          await sendTelegramMessage(chatId, `🔍 جاري تحليل الـ Issue وسياقها لصياغة ونشر التعليق التقني...`);
+          await sendTelegramMessage(chatId, `🔍 جاري تحليل الـ Issue/PR وسياقها لصياغة ونشر التعليق التقني...`);
           const issueContent = await parseAndFetchGitHubUrl(targetUrl);
-          commentText = await processSmartAIResponse(`بناءً على تفاصيل الـ Issue التالية، اكتب تعليقاً تقنياً احترافياً ومباشراً لنشره:\n${issueContent}`);
+          commentText = await processSmartAIResponse(`بناءً على المحتوى التالي، اكتب تعليقاً تقنياً احترافياً ومباشراً:\n${issueContent}`);
         } else {
-          await sendTelegramMessage(chatId, "⏳ جاري فحص الصلاحيات ونشر التعليق على GitHub...");
+          await sendTelegramMessage(chatId, "⏳ جاري النشر على GitHub...");
         }
 
-        const resultResponse = await addCommentToIssue(targetUrl, commentText);
+        const resultResponse = await addCommentToIssueOrPR(targetUrl, commentText);
         await sendTelegramMessage(chatId, resultResponse);
         return res.status(200).json({ success: true });
       }
 
-      // معالجة روابط GitHub العامة وحفظها في السياق
+      // معالجة روابط غيت هب
       if (userText.includes("github.com/")) {
         const urlMatch = userText.match(/https:\/\/github\.com\/[^\s]+/);
         if (urlMatch) {
-          runtimeMemory.lastContextUrl = urlMatch[0]; // حفظ الرابط في السياق
+          memory.lastContextUrl = urlMatch[0];
+          await saveRuntimeMemory(memory);
         }
 
-        await sendTelegramMessage(chatId, "🔍 جاري سحب وتحليل البيانات عبر GitHub App API...");
+        await sendTelegramMessage(chatId, "🔍 جاري سحب وتحليل البيانات مع التدقيق الأمني...");
         const extractedData = await parseAndFetchGitHubUrl(userText);
         const aiEvaluation = await processSmartAIResponse(`أجب بناءً على البيانات المستخرجة بدقة متناهية:\n${extractedData}`);
 
-        await sendTelegramMessage(chatId, `📊 *تحليل HeliosPilot الشامل:*\n\n${aiEvaluation}`);
+        const inlineKeyboard = {
+          inline_keyboard: [
+            [
+              { text: "💬 إضافة تعليق تقني", callback_data: `comment:${urlMatch ? urlMatch[0] : memory.lastContextUrl}` },
+              { text: "🛡️ تدقيق أمني للـ PR", callback_data: `review:${urlMatch ? urlMatch[0] : memory.lastContextUrl}` }
+            ]
+          ]
+        };
+
+        await sendTelegramMessage(chatId, `📊 *تحليل HeliosPilot الشامل:*\n\n${aiEvaluation}`, inlineKeyboard);
         return res.status(200).json({ success: true });
       }
 
