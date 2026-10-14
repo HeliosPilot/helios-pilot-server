@@ -1,5 +1,7 @@
 import fetch from "node-fetch";
 
+const GIF_DIR = "media/gifs";
+
 export async function sendTelegramMessage(chatId, text, replyMarkup = null) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token || !chatId) return;
@@ -25,6 +27,30 @@ export async function sendTelegramMessage(chatId, text, replyMarkup = null) {
     } catch (err) {
       console.error("Telegram Send Error:", err);
     }
+  }
+}
+
+export async function sendTelegramGif(chatId, gifName, caption = "") {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token || !chatId) return;
+
+  const gifPath = `${GIF_DIR}/${gifName}`;
+  try {
+    const bodyData = {
+      chat_id: chatId,
+      animation: gifPath,
+    };
+    if (caption) {
+      bodyData.caption = caption;
+    }
+
+    await fetch(`https://api.telegram.org/bot${token}/sendAnimation`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyData),
+    });
+  } catch (err) {
+    console.error("Telegram GIF Send Error:", err);
   }
 }
 
