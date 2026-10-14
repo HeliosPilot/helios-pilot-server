@@ -1,0 +1,12 @@
+{
+  "name": "helios-pilot-server",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "probot run ./index.js"
+  },
+  "dependencies": {
+    "openai": "^4.0.0",
+    "probot": "^13.0.0"
+  }
+}
