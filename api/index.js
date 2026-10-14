@@ -9,7 +9,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const memoryFilePath = path.join(__dirname, 'memory.json');
 
-// دالة لقراءة الذاكرة الحالية من ملف JSON
 function loadMemory() {
   try {
     if (fs.existsSync(memoryFilePath)) {
@@ -44,77 +43,107 @@ async function sendTelegramMessage(chatId, text) {
   });
 }
 
-async function callGroqModel(userPrompt) {
-  try {
-    const currentMemory = loadMemory();
+// 1. محاولة الاتصال عبر Groq الأساسي
+async function callGroqModel(systemInstruction, userPrompt) {
+  const chatCompletion = await groq.chat.completions.create({
+    messages: [
+      { role: "system", content: systemInstruction },
+      { role: "user", content: userPrompt }
+    ],
+    model: "qwen/qwen3.8-27b",
+    temperature: 0.5,
+    max_completion_tokens: 512,
+    top_p: 0.95,
+  });
+  return chatCompletion.choices[0]?.message?.content?.trim();
+}
 
-    const systemInstruction = `أنت HeliosPilot، مساعد ذكاء اصطناعي تقني صُممت بواسطة (Ismail-Benali) المعروف بـ (H3l!0s_T3k).
+// 2. محاولة الاتصال عبر OpenRouter للطوارئ (Fallback)
+async function callOpenRouterModel(systemInstruction, userPrompt) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) throw new Error("OpenRouter API key is not set");
+
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "google/gemini-flash-1.5", // أو أي نموذج مجاني تضعه على OpenRouter
+      messages: [
+        { role: "system", content: systemInstruction },
+        { role: "user", content: userPrompt }
+      ],
+      max_tokens: 512
+    })
+  });
+
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message || "OpenRouter error");
+  return data.choices[0]?.message?.content?.trim();
+}
+
+// الدالة الموحدة مع التبديل التلقائي
+async function callAIModel(userPrompt) {
+  const currentMemory = loadMemory();
+  const systemInstruction = `أنت HeliosPilot، مساعد ذكاء اصطناعي تقني صُممت بواسطة (Ismail-Benali) المعروف بـ (H3l!0s_T3k).
     
 الذاكرة الحالية للنظام:
 - المنشئ: ${currentMemory.creator}
 - اسم المشروع: ${currentMemory.projectName}
 - التقنيات: ${currentMemory.coreStack}
 - ملاحظات ثابتة: ${currentMemory.notes}
-- ذاكرة ديناميكية إضافية: ${JSON.stringify(currentMemory.dynamicMemory)}
+- ذاكرة ديناميكية: ${JSON.stringify(currentMemory.dynamicMemory)}
 
 قواعد الرد:
 1. أجب باختصار واحترافية تقنية تامة باللغة العربية.
 2. لا تقم بالمجاملة وكن مباشراً.
-3. إذا طلب منك المستخدم تذكر معلومة جديدة أو تعديل الذاكرة، قم بصياغة المعلومة الجديدة بوضوح واقترح عليه تحديث ملف memory.json بها بالشكل المناسب.
-4. استخدم مربعات الأكواد (code blocks) عند كتابة البرمجة.`;
+3. استخدم مربعات الأكواد (code blocks) عند البرمجة.`;
 
-    const chatCompletion = await groq.chat.completions.create({
-      messages: [
-        { role: "system", content: systemInstruction },
-        { role: "user", content: userPrompt }
-      ],
-      model: "qwen/qwen3.8-27b",
-      temperature: 0.5,
-      max_completion_tokens: 512, // تم خفضها لتتناسب تماماً مع حدود الخطة المجانية على Groq
-      top_p: 0.95,
-      stream: false,
-      reasoning_effort: "default",
-    });
-
-    return chatCompletion.choices[0]?.message?.content?.trim() || "لم يتم استلام رد من النموذج.";
-
-  } catch (error) {
-    console.error("Groq SDK Error:", error);
-    return `عذراً، حدث خطأ في خدمة الذكاء الاصطناعي: ${error.message}`;
+  try {
+    // المحاولة الأولى عبر Groq
+    return await callGroqModel(systemInstruction, userPrompt);
+  } catch (groqError) {
+    console.warn("Groq failed, switching to OpenRouter fallback...", groqError.message);
+    try {
+      // المحاولة الاحتياطية عبر OpenRouter
+      return await callOpenRouterModel(systemInstruction, userPrompt);
+    } catch (openRouterError) {
+      console.error("OpenRouter Fallback Error:", openRouterError);
+      return `عذراً، فشلت جميع خدمات الذكاء الاصطناعي (Groq & OpenRouter): ${openRouterError.message}`;
+    }
   }
 }
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(200).json({ status: "HeliosPilot is online with Dynamic Memory support!" });
+    return res.status(200).json({ status: "HeliosPilot is online with Dual-AI Fallback!" });
   }
 
   try {
     const event = req.headers["x-github-event"];
     const payload = req.body;
 
-    // 1. التعامل مع أحداث GitHub (Issues)
     if (event === "issues" && payload.action === "opened") {
       const issueTitle = payload.issue.title;
       const issueBody = payload.issue.body || "لا يوجد وصف";
       const issueUrl = payload.issue.html_url;
       const chatId = process.env.TELEGRAM_CHAT_ID;
 
-      const aiReply = await callGroqModel(`تحليل Issue جديدة:\nالعنوان: ${issueTitle}\nالوصف: ${issueBody}`);
+      const aiReply = await callAIModel(`تحليل Issue جديدة:\nالعنوان: ${issueTitle}\nالوصف: ${issueBody}`);
       await sendTelegramMessage(chatId, `🚨 *Issue جديدة تم رصدها!*\n\n📌 *العنوان:* ${issueTitle}\n🔗 *الرابط:* ${issueUrl}\n\n🤖 *تحليل HeliosPilot:* \n${aiReply}`);
 
       return res.status(200).json({ success: true });
     }
 
-    // 2. التعامل مع رسائل Telegram المباشرة والأوامر
     if (payload.message && payload.message.text) {
       const userText = payload.message.text.trim();
       const chatId = payload.message.chat.id;
 
       if (userText === "/start" || userText === "/help") {
-        const welcomeText = `👋 أهلاً بك يا H3l!0s_T3k! أنا **HeliosPilot**.\n\n` +
+        const welcomeText = `👋 أهلاً بك يا H3l!0s_T3k! أنا **HeliosPilot** (مدعوم بنظام الحماية المزدوجة).\n\n` +
           `🛠️ **صممني:** Ismail-Benali (\`H3l!0s_T3k\`)\n` +
-          `🧠 **المميزات:** أقرأ الذاكرة من ملفات المستودع وأتطور معك.\n\n` +
           `📌 **الأوامر:**\n` +
           `• \`/memory\` - عرض الذاكرة الحالية.\n` +
           `• \`/clear\` - إعادة ضبط السياق.`;
@@ -140,7 +169,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true });
       }
 
-      const replyText = await callGroqModel(userText);
+      const replyText = await callAIModel(userText);
       await sendTelegramMessage(chatId, replyText);
 
       return res.status(200).json({ success: true });
