@@ -1,18 +1,37 @@
 import { Groq } from "groq-sdk";
 import fetch from "node-fetch";
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-// تهيئة عميل Groq الرسمي
+// إعداد المسارات لقراءة ملف الذاكرة محلياً
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const memoryFilePath = path.join(__dirname, 'memory.json');
+
+// دالة لقراءة الذاكرة الحالية من ملف JSON
+function loadMemory() {
+  try {
+    if (fs.existsSync(memoryFilePath)) {
+      const data = fs.readFileSync(memoryFilePath, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error("Error reading memory file:", error);
+  }
+  return {
+    creator: "Ismail-Benali (H3l!0s_T3k)",
+    projectName: "HeliosPilot",
+    coreStack: "Node.js, Vercel Serverless, Groq API",
+    notes: "دقيق ومباشر.",
+    dynamicMemory: []
+  };
+}
+
+// تهيئة عميل Groq
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
-
-// ذاكرة البوت الخاصة بمشروع HeliosPilot فقط
-const botMemory = {
-  creator: "Ismail-Benali (H3l!0s_T3k)",
-  projectName: "HeliosPilot",
-  coreStack: "Node.js, Vercel Serverless, Groq API (qwen/qwen3.8-27b), Probot, Telegram Bot API",
-  notes: "المطور يفضل الدقة، الاختصار، الكود النظيف، المباشرة، وعدم المجاملة."
-};
 
 async function sendTelegramMessage(chatId, text) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -27,19 +46,22 @@ async function sendTelegramMessage(chatId, text) {
 
 async function callGroqModel(userPrompt) {
   try {
-    const systemInstruction = `أنت HeliosPilot، مساعد ذكاء اصطناعي تقني تم تصميمك وصناعتك بواسطة المطور (Ismail-Benali) المعروف بـ (H3l!0s_T3k) لمساعدته في إدارة وتطوير مشاريعه البرمجية والأكواد والـ Webhooks.
+    const currentMemory = loadMemory();
+
+    const systemInstruction = `أنت HeliosPilot، مساعد ذكاء اصطناعي تقني صُممت بواسطة (Ismail-Benali) المعروف بـ (H3l!0s_T3k).
     
-معلومات الذاكرة الحالية:
-- المنشئ: ${botMemory.creator}
-- اسم المشروع: ${botMemory.projectName}
-- التقنيات المستخدمة: ${botMemory.coreStack}
-- ملاحظات خاصة: ${botMemory.notes}
+الذاكرة الحالية للنظام:
+- المنشئ: ${currentMemory.creator}
+- اسم المشروع: ${currentMemory.projectName}
+- التقنيات: ${currentMemory.coreStack}
+- ملاحظات ثابتة: ${currentMemory.notes}
+- ذاكرة ديناميكية إضافية: ${JSON.stringify(currentMemory.dynamicMemory)}
 
 قواعد الرد:
-1. أجب باختصار، وبصيغة تقنية بحتة واحترافية باللغة العربية.
-2. لا تقم بالمجاملة، وكن مباشراً في تحليل الأكواد والمشكلات.
-3. انسخ الأكواد البرمجية دائماً داخل مربعات تنسيق Markdown واضحة (code blocks) مع تحديد لغة البرمجة.
-4. تذكر دائماً هويتك وأنك صُنعت بواسطة H3l!0s_T3k.`;
+1. أجب باختصار واحترافية تقنية تامة باللغة العربية.
+2. لا تقم بالمجاملة وكن مباشراً.
+3. إذا طلب منك المستخدم تذكر معلومة جديدة أو تعديل الذاكرة، قم بصياغة المعلومة الجديدة بوضوح واقترح عليه تحديث ملف memory.json بها بالشكل المناسب.
+4. استخدم مربعات الأكواد (code blocks) عند كتابة البرمجة.`;
 
     const chatCompletion = await groq.chat.completions.create({
       messages: [
@@ -64,7 +86,7 @@ async function callGroqModel(userPrompt) {
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(200).json({ status: "HeliosPilot is online and fully armed!" });
+    return res.status(200).json({ status: "HeliosPilot is online with Dynamic Memory support!" });
   }
 
   try {
@@ -90,31 +112,31 @@ export default async function handler(req, res) {
       const chatId = payload.message.chat.id;
 
       if (userText === "/start" || userText === "/help") {
-        const welcomeText = `👋 أهلاً بك يا H3l!0s_T3k! أنا **HeliosPilot**، مساعدك التقني الشخصي.\n\n` +
-          `🛠️ **صممني:** Ismail-Benali (معروف بـ \`H3l!0s_T3k\`)\n` +
-          `🎯 **دوري:** مساعدتك تقنياً، تحليل مشكلات الأكواد، وإدارة مستودعاتك.\n\n` +
-          `📌 **الأوامر المتاحة:**\n` +
-          `• \`/memory\` - عرض بيانات الذاكرة للنظام.\n` +
-          `• \`/clear\` - إعادة ضبط المحادثة.\n` +
-          `• اطرح أي استفسار برمجي وسأجيبك فوراً.`;
+        const welcomeText = `👋 أهلاً بك يا H3l!0s_T3k! أنا **HeliosPilot**.\n\n` +
+          `🛠️ **صممني:** Ismail-Benali (\`H3l!0s_T3k\`)\n` +
+          `🧠 **المميزات:** أقرأ الذاكرة من ملفات المستودع وأتطور معك.\n\n` +
+          `📌 **الأوامر:**\n` +
+          `• \`/memory\` - عرض الذاكرة الحالية.\n` +
+          `• \`/clear\` - إعادة ضبط السياق.`;
         
         await sendTelegramMessage(chatId, welcomeText);
         return res.status(200).json({ success: true });
       }
 
       if (userText === "/memory") {
+        const memory = loadMemory();
         const memoryReport = `🧠 **سجل ذاكرة HeliosPilot:**\n\n` +
-          `- **المنشئ:** \`${botMemory.creator}\`\n` +
-          `- **المشروع:** ${botMemory.projectName}\n` +
-          `- **التقنيات:** ${botMemory.coreStack}\n` +
-          `- **السياسة:** ${botMemory.notes}`;
+          `- **المنشئ:** \`${memory.creator}\`\n` +
+          `- **المشروع:** ${memory.projectName}\n` +
+          `- **التقنيات:** ${memory.coreStack}\n` +
+          `- **الذاكرة الديناميكية:** ${JSON.stringify(memory.dynamicMemory)}`;
 
         await sendTelegramMessage(chatId, memoryReport);
         return res.status(200).json({ success: true });
       }
 
       if (userText === "/clear") {
-        await sendTelegramMessage(chatId, "🧹 تم إعادة تهيئة السياق.");
+        await sendTelegramMessage(chatId, "🧹 تم إعادة تهيئة المحادثة الحالية.");
         return res.status(200).json({ success: true });
       }
 
