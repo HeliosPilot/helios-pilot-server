@@ -70,7 +70,7 @@ async function callGroqModel(userPrompt) {
       ],
       model: "qwen/qwen3.8-27b",
       temperature: 0.5,
-      max_completion_tokens: 2048,
+      max_completion_tokens: 512, // تم خفضها لتتناسب تماماً مع حدود الخطة المجانية على Groq
       top_p: 0.95,
       stream: false,
       reasoning_effort: "default",
