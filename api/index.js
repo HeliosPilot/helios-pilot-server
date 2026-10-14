@@ -324,12 +324,6 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true });
       }
 
-      if (userText === "/gif") {
-        await sendTelegramGif(chatId, "welcome.gif", "🎬 HeliosPilot GIF Test");
-        await sendTelegramMessage(chatId, "✅ تم إرسال GIF بنجاح!	check your Telegram.");
-        return res.status(200).json({ success: true });
-      }
-
       if (userTextLower.includes("اضف تعليق") || userTextLower.includes("اكتب تعليق") || userTextLower.includes("تعليق")) {
         const urlMatch = userText.match(/https:\/\/github\.com\/[^\s]+/);
         let targetUrl = urlMatch ? urlMatch[0] : memory.lastContextUrl;
