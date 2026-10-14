@@ -3,11 +3,13 @@ import fetch from "node-fetch";
 import { Octokit } from "@octokit/rest";
 import crypto from 'crypto';
 
+// الذاكرة الحية مع إدارة سياق المحادثات والتفضيلات
 let runtimeMemory = {
   creator: "Ismail-Benali (H3l!0s_T3k)",
-  projectName: "HeliosPilot Pro",
+  projectName: "HeliosPilot Pro Enterprise",
   coreStack: "Node.js, Vercel Serverless, Groq, OpenRouter, GitHub App, Telegram API",
-  rules: "دقيق، مباشر، تقني بحت، بدون مجاملة، التركيز المطلق على الأداء والأكواد النظيفة.",
+  rules: "دقيق، مباشر، تقني بحت، بدون مجاملة، التركيز المطلق على الأداء والوعي بالصلاحيات.",
+  lastContextUrl: null, // تتبع آخر رابط تم مناقشته في الشات
   dynamicMemory: []
 };
 
@@ -96,15 +98,18 @@ async function getInstallationOctokitForRepo(owner, repo) {
   return null;
 }
 
-// دالة إضافة تعليق فعلي على الـ Issue في GitHub
+// إضافة تعليق على Issue مع التحقق التلقائي من صلاحيات الكتابة
 async function addCommentToIssue(url, commentBody) {
   try {
     const issueMatch = url.match(/github\.com\/([^\/]+)\/([^\/]+)\/issues\/(\d+)/);
-    if (!issueMatch) return "رابط الـ Issue غير صالح لإضافة التعليق.";
+    if (!issueMatch) return "⚠️ رابط الـ Issue غير صالح لإضافة التعليق.";
 
     const [, owner, repo, issueNumber] = issueMatch;
     const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
-    if (!repoOctokit) return `عذراً، تطبيق GitHub App غير مثبت أو ليس لديه صلاحية الوصول للمستودع (${owner}/${repo}).`;
+    
+    if (!repoOctokit) {
+      return `🛑 **صلاحيات مفقودة:** المستودع \`${owner}/${repo}\` غير مقترن بـ GitHub App أو لا أملك صلاحية الكتابة عليه. يرجى التثبيت أو منح الصلاحيات من إعدادات الـ App.`;
+    }
 
     await repoOctokit.issues.createComment({
       owner,
@@ -113,20 +118,22 @@ async function addCommentToIssue(url, commentBody) {
       body: commentBody
     });
 
-    return `✅ تم نشر التعليق بنجاح على الـ Issue #${issueNumber} في (${owner}/${repo}).`;
+    return `✅ **تم النشر:** تم إضافة التعليق بنجاح على الـ Issue #${issueNumber} في (\`${owner}/${repo}\`).`;
   } catch (error) {
-    return `فشل نشر التعليق على GitHub: ${error.message}`;
+    return `❌ **فشل النشر:** ${error.message}`;
   }
 }
 
-// محلل روابط GitHub الشامل
+// قراءة وتحليل بيانات غيت هب
 async function parseAndFetchGitHubUrl(url) {
   try {
     const issueMatch = url.match(/github\.com\/([^\/]+)\/([^\/]+)\/issues\/(\d+)/);
     if (issueMatch) {
       const [, owner, repo, issueNumber] = issueMatch;
       const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
-      if (!repoOctokit) return `عذراً، تطبيق GitHub App غير مثبت أو ليس لديه صلاحية وصول للمستودع (${owner}/${repo}).`;
+      if (!repoOctokit) {
+        return `🛑 المستودع \`${owner}/${repo}\` غير مرتبط بـ GitHub App. لا يمكن القراءة منه.`;
+      }
 
       const { data: issue } = await repoOctokit.issues.get({ owner, repo, issue_number: parseInt(issueNumber) });
       const { data: comments } = await repoOctokit.issues.listComments({ owner, repo, issue_number: parseInt(issueNumber) });
@@ -147,7 +154,7 @@ async function parseAndFetchGitHubUrl(url) {
     if (prMatch) {
       const [, owner, repo, prNumber] = prMatch;
       const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
-      if (!repoOctokit) return `عذراً، تطبيق GitHub App غير مثبت أو ليس لديه صلاحية الوصول للمستودع (${owner}/${repo}).`;
+      if (!repoOctokit) return `🛑 المستودع \`${owner}/${repo}\` غير مرتبط بـ GitHub App.`;
 
       const { data: pr } = await repoOctokit.pulls.get({ owner, repo, pull_number: parseInt(prNumber) });
       const { data: files } = await repoOctokit.pulls.listFiles({ owner, repo, pull_number: parseInt(prNumber) });
@@ -167,7 +174,7 @@ async function parseAndFetchGitHubUrl(url) {
       const repo = repoMatch[2].replace(/\/$/, "");
 
       const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
-      if (!repoOctokit) return `عذراً، تطبيق GitHub App غير مثبت على المستودع (${owner}/${repo}).`;
+      if (!repoOctokit) return `🛑 المستودع \`${owner}/${repo}\` غير مرتبط بـ GitHub App.`;
 
       const { data: contents } = await repoOctokit.repos.getContent({ owner, repo, path: "" });
       const fileList = Array.isArray(contents) ? contents.map(f => f.name).join(", ") : "ملف رئيسي واحد";
@@ -251,10 +258,10 @@ async function callOpenRouterModel(systemInstruction, userPrompt) {
 
 async function processSmartAIResponse(userPrompt) {
   const systemInstruction = `أنت HeliosPilot Pro، مساعد ذكاء اصطناعي تقني صُممت بواسطة (Ismail-Benali) المعروف بـ (H3l!0s_T3k).
-الذاكرة الحية والسياق التقني الحالي: ${JSON.stringify(runtimeMemory)}
+الذاكرة الحية ومفهوم السياق الحالي: ${JSON.stringify(runtimeMemory)}
 
-قواعد الرد:
-1. تعلم أي تعليمات برمجية أو تفضيلات جديدة يذكرها المطور وأضفها للذاكرة الحية تلقائياً.
+قواعد الرد الذكي:
+1. كن واعياً بالصلاحيات: إذا طُلِب إجراء تغيير أو تعليق على مستودع غير مرتبط، وضح الصلاحيات المطلوبة.
 2. أجب باختصار، بدقة تقنية تامة، وباللغة العربية، وبدون أي مجاملة.`;
 
   try {
@@ -270,7 +277,7 @@ async function processSmartAIResponse(userPrompt) {
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(200).json({ status: "HeliosPilot Pro Enterprise with Commenting is online!" });
+    return res.status(200).json({ status: "HeliosPilot Smart Context Engine is online!" });
   }
 
   try {
@@ -282,11 +289,14 @@ export default async function handler(req, res) {
     const payload = req.body;
     const chatId = process.env.TELEGRAM_CHAT_ID;
 
+    // 1. معالجة الأحداث القادمة من GitHub
     if (event === "issues" && payload.action === "opened") {
       const issueTitle = payload.issue.title;
       const issueBody = payload.issue.body || "لا يوجد وصف";
       const issueUrl = payload.issue.html_url;
       const repoName = payload.repository?.full_name || "مستودع غير معروف";
+
+      runtimeMemory.lastContextUrl = issueUrl; // حفظ الرابط في السياق
 
       const aiReply = await processSmartAIResponse(`تحليل Issue جديدة في ${repoName}:\nالعنوان: ${issueTitle}\nالوصف: ${issueBody}`);
       await sendTelegramMessage(chatId, `🚨 *Issue جديدة في مستودع: ${repoName}!*\n\n📌 *العنوان:* ${issueTitle}\n🔗 *الرابط:* ${issueUrl}\n\n🤖 *تحليل HeliosPilot:* \n${aiReply}`);
@@ -298,26 +308,29 @@ export default async function handler(req, res) {
       const prTitle = payload.pull_request.title;
       const prUrl = payload.pull_request.html_url;
       const repoName = payload.repository?.full_name || "مستودع غير معروف";
-      const branchName = payload.pull_request.head.ref;
 
-      const aiReview = await processSmartAIResponse(`مراجعة Pull Request جديد:\nالعنوان: ${prTitle}\nالفرع: ${branchName}\nالمستودع: ${repoName}`);
-      await sendTelegramMessage(chatId, `🔀 *Pull Request جديد أو محدث!*\n\n📌 *العنوان:* ${prTitle}\n📂 *المستودع:* ${repoName}\n🔗 *الرابط:* ${prUrl}\n\n🤖 *تقرير مراجعة الكود (Code Review):*\n${aiReview}`);
+      runtimeMemory.lastContextUrl = prUrl;
+
+      const aiReview = await processSmartAIResponse(`مراجعة Pull Request جديد:\nالعنوان: ${prTitle}\nالمستودع: ${repoName}`);
+      await sendTelegramMessage(chatId, `🔀 *Pull Request جديد أو محدث!*\n\n📌 *العنوان:* ${prTitle}\n📂 *المستودع:* ${repoName}\n🔗 *الرابط:* ${prUrl}\n\n🤖 *تقرير مراجعة الكود:*\n${aiReview}`);
 
       return res.status(200).json({ success: true });
     }
 
+    // 2. معالجة الرسائل القادمة من تيليجرام
     if (payload.message && payload.message.text) {
       const userText = payload.message.text.trim();
       const userTextLower = userText.toLowerCase();
 
+      // تخزين التفضيلات التلقائية
       if (!userText.startsWith("/") && userText.length > 15 && (userText.includes("نريد") || userText.includes("أريد") || userText.includes("مهم") || userText.includes("قاعدة"))) {
         runtimeMemory.dynamicMemory.push(userText);
       }
 
       if (userText === "/start" || userText === "/help") {
-        await sendTelegramMessage(chatId, `👋 أهلاً بك يا H3l!0s_T3k!\n\nأنا **HeliosPilot Pro**. أراجع وأعلق على الـ Issues وأدير مستودعاتك.\n` +
-          `• \`/status\` - عرض الحالة والذاكرة الحية\n` +
-          `• أرسل رابط أي Issue مع طلب تعليق (مثال: "اضف تعليق على [الرابط]: [نص التعليق]") وسأنشره فوراً.`);
+        await sendTelegramMessage(chatId, `👋 أهلاً بك يا H3l!0s_T3k!\n\nأنا **HeliosPilot Pro**. أدير السياق والتعليقات والصلاحيات لجميع مستودعاتك.\n` +
+          `• \`/status\` - عرض الحالة والذاكرة والمستودع الحالي في السياق\n` +
+          `• اكتب "اضف تعليق" لمتابعة العمل على آخر Issue تم التطرق إليها.`);
         return res.status(200).json({ success: true });
       }
 
@@ -326,34 +339,37 @@ export default async function handler(req, res) {
           ? runtimeMemory.dynamicMemory.map((m, i) => `${i+1}. ${m}`).join("\n") 
           : "لا توجد ذكريات مكتسبة بعد.";
 
-        await sendTelegramMessage(chatId, `⚡ *حالة HeliosPilot Pro:*\n\n- **المنشئ:** \`${runtimeMemory.creator}\`\n- **الذاكرة المكتسبة:**\n${memoryItems}`);
+        await sendTelegramMessage(chatId, `⚡ *حالة HeliosPilot Pro:*\n\n` +
+          `- **المنشئ:** \`${runtimeMemory.creator}\`\n` +
+          `- **آخر رابط في السياق:** ${runtimeMemory.lastContextUrl || "لا يوجد"}\n` +
+          `- **الذاكرة المكتسبة:**\n${memoryItems}`);
         return res.status(200).json({ success: true });
       }
 
       if (userText === "/clear") {
-        await sendTelegramMessage(chatId, "🧹 تم إعادة تهيئة الجلسة.");
+        runtimeMemory.lastContextUrl = null;
+        await sendTelegramMessage(chatId, "🧹 تم إعادة تهيئة السياق والجلسة.");
         return res.status(200).json({ success: true });
       }
 
-      // طلب إضافة تعليق مباشر على Issue
-      if (userTextLower.includes("اضف تعليق") || userTextLower.includes("اكتب تعليق") || userTextLower.includes("تعليق لـ")) {
+      // معالجة طلبات إضافة التعليق مع الاستفادة من سياق المحادثة المباشر
+      if (userTextLower.includes("اضف تعليق") || userTextLower.includes("اكتب تعليق") || userTextLower.includes("تعليق")) {
         const urlMatch = userText.match(/https:\/\/github\.com\/[^\s]+/);
-        if (!urlMatch) {
-          await sendTelegramMessage(chatId, "⚠️ يرجى تضمين رابط الـ Issue الصحيح مع طلب التعليق.");
+        let targetUrl = urlMatch ? urlMatch[0] : runtimeMemory.lastContextUrl;
+
+        if (!targetUrl) {
+          await sendTelegramMessage(chatId, "⚠️ لم أجد رابط Issue في الرسالة أو في سياق المحادثة السابق. يرجى تزويدي بالرابط.");
           return res.status(200).json({ success: true });
         }
 
-        const targetUrl = urlMatch[0];
-        // استخراج نص التعليق (كل ما يأتي بعد الرابط أو استنباطه عبر الذكاء الاصطناعي)
         let commentText = userText.replace(targetUrl, "").replace(/اضف تعليق|اكتب تعليق|على|لـ/g, "").trim();
-        
+
         if (!commentText || commentText.length < 3) {
-          // إذا لم يكتب نصاً، نطلب من الذكاء الاصطناعي صياغة تعليق احترافي بناءً على محتوى الـ Issue
-          await sendTelegramMessage(chatId, "🔍 جاري تحليل الـ Issue لصياغة ونشر التعليق التقني المناسب...");
+          await sendTelegramMessage(chatId, `🔍 جاري تحليل الـ Issue وسياقها لصياغة ونشر التعليق التقني...`);
           const issueContent = await parseAndFetchGitHubUrl(targetUrl);
-          commentText = await processSmartAIResponse(`بناءً على تفاصيل الـ Issue التالية، اكتب تعليقاً تقنياً احترافياً مختصراً ومباشراً:\n${issueContent}`);
+          commentText = await processSmartAIResponse(`بناءً على تفاصيل الـ Issue التالية، اكتب تعليقاً تقنياً احترافياً ومباشراً لنشره:\n${issueContent}`);
         } else {
-          await sendTelegramMessage(chatId, "⏳ جاري نشر التعليق على GitHub...");
+          await sendTelegramMessage(chatId, "⏳ جاري فحص الصلاحيات ونشر التعليق على GitHub...");
         }
 
         const resultResponse = await addCommentToIssue(targetUrl, commentText);
@@ -361,9 +377,14 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true });
       }
 
-      // معالجة روابط GitHub العادية (للقراءة والتحليل)
+      // معالجة روابط GitHub العامة وحفظها في السياق
       if (userText.includes("github.com/")) {
-        await sendTelegramMessage(chatId, "🔍 جاري سحب وتحليل البيانات بدقة عبر GitHub App API...");
+        const urlMatch = userText.match(/https:\/\/github\.com\/[^\s]+/);
+        if (urlMatch) {
+          runtimeMemory.lastContextUrl = urlMatch[0]; // حفظ الرابط في السياق
+        }
+
+        await sendTelegramMessage(chatId, "🔍 جاري سحب وتحليل البيانات عبر GitHub App API...");
         const extractedData = await parseAndFetchGitHubUrl(userText);
         const aiEvaluation = await processSmartAIResponse(`أجب بناءً على البيانات المستخرجة بدقة متناهية:\n${extractedData}`);
 
