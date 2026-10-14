@@ -1,8 +1,10 @@
 import { Groq } from "groq-sdk";
 import fetch from "node-fetch";
+import { Octokit } from "@octokit/rest";
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,7 +22,7 @@ function loadMemory() {
   return {
     creator: "Ismail-Benali (H3l!0s_T3k)",
     projectName: "HeliosPilot",
-    coreStack: "Node.js, Vercel Serverless, Groq API",
+    coreStack: "Node.js, Vercel Serverless, Groq API, GitHub App",
     notes: "دقيق ومباشر.",
     dynamicMemory: []
   };
@@ -39,6 +41,71 @@ async function sendTelegramMessage(chatId, text) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: "Markdown" }),
   });
+}
+
+// توليد توقيع JWT للـ GitHub App معتمدين على APP_ID و PRIVATE_KEY
+function generateGitHubAppJWT() {
+  const appId = process.env.APP_ID;
+  let privateKey = process.env.PRIVATE_KEY;
+
+  if (!appId || !privateKey) {
+    throw new Error("GitHub App credentials (APP_ID or PRIVATE_KEY) are missing.");
+  }
+
+  // تصحيح صيغة المفتاح السري في حال تخزينه بأسطر مُشفرة كـ \n
+  privateKey = privateKey.replace(/\\n/g, '\n');
+
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    iat: now - 60,
+    exp: now + (10 * 60),
+    iss: appId
+  };
+
+  const header = { alg: "RS256", typ: "JWT" };
+  const encodedHeader = Buffer.from(JSON.stringify(header)).toString("base64url");
+  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
+
+  const signInput = `${encodedHeader}.${encodedPayload}`;
+  const sign = crypto.createSign("RSA-SHA256");
+  sign.update(signInput);
+  const signature = sign.sign(privateKey, "base64url");
+
+  return `${signInput}.${signature}`;
+}
+
+// جلب المستودعات المثبت عليها الـ GitHub App تلقائياً
+async function fetchAppInstallationsAndRepos() {
+  try {
+    const jwtToken = generateGitHubAppJWT();
+    const octokit = new Octokit({ auth: jwtToken });
+
+    const { data: installations } = await octokit.apps.listInstallations();
+    
+    if (!installations || installations.length === 0) {
+      return ["⚠️ لم يتم تثبيت الـ GitHub App على أي مستودع حتى الآن."];
+    }
+
+    let allRepos = [];
+
+    for (const installation of installations) {
+      const { data: accessTokenData } = await octokit.apps.createInstallationAccessToken({
+        installation_id: installation.id,
+      });
+
+      const installationOctokit = new Octokit({ auth: accessTokenData.token });
+      const { data: reposData } = await installationOctokit.apps.listReposAccessibleToInstallation();
+
+      for (const repo of reposData.repositories) {
+        allRepos.push(`[${repo.full_name}](${repo.html_url}) - ${repo.description || "بدون وصف"}`);
+      }
+    }
+
+    return allRepos.length > 0 ? allRepos : ["لا توجد مستودعات متاحة ضمن هذا التثبيت."];
+  } catch (error) {
+    console.error("GitHub App API Error:", error);
+    return [`خطأ في الاتصال بـ GitHub App API: ${error.message}`];
+  }
 }
 
 async function callGroqModel(systemInstruction, userPrompt) {
@@ -99,7 +166,7 @@ async function callAIModel(userPrompt) {
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(200).json({ status: "HeliosPilot is online!" });
+    return res.status(200).json({ status: "HeliosPilot GitHub App is online!" });
   }
 
   try {
@@ -110,10 +177,11 @@ export default async function handler(req, res) {
       const issueTitle = payload.issue.title;
       const issueBody = payload.issue.body || "لا يوجد وصف";
       const issueUrl = payload.issue.html_url;
+      const repoName = payload.repository?.full_name || "مستودع غير معروف";
       const chatId = process.env.TELEGRAM_CHAT_ID;
 
-      const aiReply = await callAIModel(`تحليل Issue جديدة:\nالعنوان: ${issueTitle}\nالوصف: ${issueBody}`);
-      await sendTelegramMessage(chatId, `🚨 *Issue جديدة تم رصدها!*\n\n📌 *العنوان:* ${issueTitle}\n🔗 *الرابط:* ${issueUrl}\n\n🤖 *تحليل HeliosPilot:* \n${aiReply}`);
+      const aiReply = await callAIModel(`تحليل Issue جديدة في المستودع ${repoName}:\nالعنوان: ${issueTitle}\nالوصف: ${issueBody}`);
+      await sendTelegramMessage(chatId, `🚨 *Issue جديدة في مستودع: ${repoName}!*\n\n📌 *العنوان:* ${issueTitle}\n🔗 *الرابط:* ${issueUrl}\n\n🤖 *تحليل HeliosPilot:* \n${aiReply}`);
 
       return res.status(200).json({ success: true });
     }
@@ -123,9 +191,8 @@ export default async function handler(req, res) {
       const userTextLower = userText.toLowerCase();
       const chatId = payload.message.chat.id;
 
-      // 1. الأوامر السريعة
       if (userText === "/start" || userText === "/help") {
-        const welcomeText = `👋 أهلاً بك يا H3l!0s_T3k!\n\nأنا **HeliosPilot** صممني (Ismail-Benali) المعروف بـ **H3l!0s_T3k** لمساعدته في تطوير مشاريعه التقنية، وكذالك دوري هو مساعدتك في إدارة الأكواد وتحليل المشكلات.`;
+        const welcomeText = `👋 أهلاً بك يا H3l!0s_T3k!\n\nأنا **HeliosPilot** (GitHub App) صممني (Ismail-Benali) المعروف بـ **H3l!0s_T3k**. أستطيع تتبع مستودعاتك المثبتة وتقديم الدعم التقني المباشر.`;
         await sendTelegramMessage(chatId, welcomeText);
         return res.status(200).json({ success: true });
       }
@@ -145,7 +212,22 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true });
       }
 
-      // 2. الرد الفوري والدقيق على أسئلة الهوية ومن صممه (بدون الاعتماد على مزاج الموديل)
+      if (
+        userTextLower.includes("المستودعات") || 
+        userTextLower.includes("المستودع") || 
+        userTextLower.includes("repos") ||
+        userTextLower.includes("repository") ||
+        userTextLower.includes("المستودعات التي انت موجود فيها")
+      ) {
+        await sendTelegramMessage(chatId, "🔍 جاري فحص المستودعات المثبت عليها تطبيق GitHub App...");
+        const repos = await fetchAppInstallationsAndRepos();
+        const reposListText = repos.map(r => `• ${r}`).join("\n");
+
+        const responseText = `📂 *المستودعات التي يتواجد فيها تطبيق HeliosPilot:*\n\n${reposListText}`;
+        await sendTelegramMessage(chatId, responseText);
+        return res.status(200).json({ success: true });
+      }
+
       if (
         userTextLower.includes("من أنت") || 
         userTextLower.includes("من انت") || 
@@ -154,18 +236,16 @@ export default async function handler(req, res) {
         userTextLower.includes("من أنشأك") ||
         userTextLower.includes("who are you")
       ) {
-        const identityResponse = `أنا **HeliosPilot** صممني (Ismail-Benali) المعروف بـ **H3l!0s_T3k** لمساعدته في تطوير مشاريعه التقنية، وكذالك دوري هو مساعدتك في إدارة الأكواد، تحليل مشكلات GitHub، وتقديم الدعم التقني بدقة واختصار.`;
+        const identityResponse = `أنا **HeliosPilot** صممني (Ismail-Benali) المعروف بـ **H3l!0s_T3k** كـ GitHub App متكامل لمتابعة الأكواد والمستودعات بدقة واختصار.`;
         await sendTelegramMessage(chatId, identityResponse);
         return res.status(200).json({ success: true });
       }
 
-      // 3. الرد على التحيات البسيطة (مثل مرحبا أو hello)
       if (userTextLower === "مرحبا" || userTextLower === "سلام" || userTextLower === "hello" || userTextLower === "hi") {
         await sendTelegramMessage(chatId, "أهلاً بك يا H3l!0s_T3k. أنا HeliosPilot، جاهز لمساعدتك في أي مهمة برمجية. ما المطلوب؟");
         return res.status(200).json({ success: true });
       }
 
-      // 4. باقي الأسئلة التقنية تُرسل للذكاء الاصطناعي
       const replyText = await callAIModel(userText);
       await sendTelegramMessage(chatId, replyText);
 
