@@ -364,20 +364,8 @@ export default async function handler(req, res) {
         if (memory.dynamicMemory.length > 25) {
           memory.dynamicMemory.shift();
         }
-        await saveRuntimeMemory(memory);
+await saveRuntimeMemory(memory);
       }
-
-      if (userText === "/start" || userText === "/help") {
-    const helpText = `👋 أهلاً بك يا خالقي العظيم H3l!0s_T3k! ⚡\n\nأنا **HeliosPilot**، الحارس المخضرم (25 عام خبرة) ومساعد **HELIOS-NET** (AI DevSecOps Companion) والمراقب لخطوط الـ Actions و Sentry.\n` +
-      `• \`/status\` - حالة الحراسة والذاكرة الهندسية\n` +
-      `• \`/clear\` - إعادة تهيئة السياق\n` +
-      `• \`المستودعات\` - عرض المستودعات المحمية\n` +
-      `• \`/metrics\` - مقاييس جودة الكود\n` +
-      `• \`/weekly\` - التقرير الأسبوعي`;
-    
-    await sendTelegramMessage(chatId, helpText);
-    return res.status(200).json({ success: true });
-  }
 
       if (userText === "/status") {
         const memoryItems = memory.dynamicMemory.length > 0 
