@@ -59,13 +59,17 @@
 
 ### Telegram Commands
 
-| Command | Description |
-|---------|-------------|
-| `/start` | Initialize the bot and greetings |
-| `/help` | Show available commands and features |
-| `/status` | Check system status and memory |
-| `/clear` | Reset context and memory |
-| `/gif` *(Deprecated)* | Test GIF sending |
+| Command | Arabic Description | English Description | Example | Result |
+|---------|-------------------|---------------------|---------|--------|
+| `/start` | بدء التشغيل والترحيب بالبوت | Initialize the bot and greetings | اكتب `/start` | 👋 أهلاً بك يا خالقي العظيم H3l!0s_T3k! ⚡ أنا **HeliosPilot**، الحارس المخضرم (25 عام خبرة) ومساعد **HELIOS-NET** (AI DevSecOps Companion) والمراقب لخطوط الـ Actions و Sentry. |
+| `/help` | عرض الأوامر والميزات المتاحة | Show available commands and features | اكتب `/help` | قائمة بجميع الأوامر مع الشرح (هذه الجدول). |
+| `/status` | حالة الحارس والذاكرة الهندسية | Check system status and memory | اكتب `/status` | ⚡ *حالة حارس HELIOS-NET (Actions & Sentry Monitored):*\n\n`- **المالك:** \`Ismail-Benali\`\n`- **المشروع المحمي:** https://github.com/Ismail-Benali/HELIOS-NET\n`- **آخر رابط في السياق:** لا يوجد\n`- **أحدث الملاحظات الهندسية والأمنية:** لا توجد ملاحظات مسجلة.` |
+| `/clear` | إعادة تهيئة السياق والمسح | Reset context and memory | اكتب `/clear` | 🧹 تم إعادة تهيئة السياق الهندسي بنجاح. ⚡ |
+| `/metrics` | مقاييس جودة الكود (جديد) | Code quality metrics (new) | اكتب `/metrics` | 📊 *مقاييس HELIOS-NET المخضرم:*\n\n⚠️ **Complexity:** 45 (الحد: 20)\n📈 **Coverage:** 78% (الحد: 80%)\n🔁 **Duplication:** 12% (الحد: <10%)\n📝 **Technical Debt:** 15 ساعة\n🟢 **Functions صحية:** 67🔴 **Functions needing review:** 23 |
+| `/weekly` | التقرير الأسبوعي (جديد) | Weekly report (new) | اكتب `/weekly` | 📊 *ملخص أسبوعي HELIOS-NET* ⚡\n\n`- **المالك:** \`Ismail-Benali\`\n`- **المشروع:** HELIOS-NET\n`- **المستودعات المحمية:** 1 مستودع\n`- **اتجاه التعقيد:** ↗️ زيادة ( +5 هذا الأسبوع )\n`- **اتجاه التغطية:** ↘️ انخفاض ( -2% هذا الأسبوع )\n`- **تنبيهات أمنية:** 0 نتائج جديدة\n`- **المطورون النشطون:** 3\n`- **التبعيات:** 42총 (2 قديمة)` |
+| `/gif` *(Deprecated)* | اختبار إرسال صور GIF (ملغى) | Test GIF sending (deprecated) | اكتب `/gif` | ⚠️ تم إلغاء 명령 GIF، استخدم الصور العادية. |
+
+**ملاحظة:** أوامر `/metrics` و `/weekly` تتطلب تفعيل خصائص جودة الكود في إعدادات GitHub App والمستودع.
 
 ### GitHub Webhooks
 
