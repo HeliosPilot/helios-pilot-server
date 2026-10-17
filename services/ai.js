@@ -2,6 +2,16 @@ import { Groq } from "groq-sdk";
 import { captureException } from "./sentry.js";
 import fetch from "node-fetch";
 
+/**
+ * 🔒 STRICT STABLE AI MODELS CONFIGURATION
+ * DO NOT MODIFY THESE MODEL IDENTIFIERS. They are locked to production-stable endpoints
+ * to prevent 404 Model Not Found and endpoint validation failures.
+ */
+export const STABLE_MODELS = Object.freeze({
+  GROQ: "llama-3.1-8b-instant",
+  OPENROUTER: "openai/gpt-4o-mini"
+});
+
 async function callGroqModel(systemInstruction, userPrompt) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("GROQ_API_KEY is missing");
@@ -12,7 +22,7 @@ async function callGroqModel(systemInstruction, userPrompt) {
       { role: "system", content: systemInstruction },
       { role: "user", content: userPrompt }
     ],
-    model: "llama-3.1-8b-instant",
+    model: STABLE_MODELS.GROQ,
     temperature: 0.3,
     max_completion_tokens: 1024,
     top_p: 0.95,
@@ -31,7 +41,7 @@ async function callOpenRouterModel(systemInstruction, userPrompt) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: "openai/gpt-4o-mini",
+      model: STABLE_MODELS.OPENROUTER,
       messages: [
         { role: "system", content: systemInstruction },
         { role: "user", content: userPrompt }

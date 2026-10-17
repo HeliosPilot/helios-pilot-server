@@ -83,6 +83,17 @@ Add a webhook to your GitHub repository:
   - `dependabot_alert`
   - `code_scanning_alert`
 
+## 🔒 Locked Stable AI Models
+
+To ensure 100% production reliability and prevent model deprecation or 404 errors, HeliosPilot locks its AI engine to proven stable models (`services/ai.js`):
+
+| Provider | Locked Model Identifier | Status | Purpose |
+|----------|-------------------------|--------|---------|
+| **Groq** | `llama-3.1-8b-instant` | 🔒 Immutable | Primary ultra-fast inference & code metrics |
+| **OpenRouter** | `openai/gpt-4o-mini` | 🔒 Immutable | Reliable fallback AI reasoning & security analysis |
+
+These models are frozen using `Object.freeze` in code to prevent unauthorized or accidental modifications.
+
 ## 🏗️ Architecture
 
 ```
