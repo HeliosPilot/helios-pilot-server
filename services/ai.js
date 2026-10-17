@@ -1,9 +1,10 @@
 import { Groq } from "groq-sdk";
+import { captureException } from "./sentry.js";
 import fetch from "node-fetch";
 
 async function callGroqModel(systemInstruction, userPrompt) {
   const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error("GROQ_API_KEY is not set");
+  if (!apiKey) throw new Error("GROQ_API_KEY is missing");
 
   const groq = new Groq({ apiKey });
   const chatCompletion = await groq.chat.completions.create({
@@ -11,8 +12,8 @@ async function callGroqModel(systemInstruction, userPrompt) {
       { role: "system", content: systemInstruction },
       { role: "user", content: userPrompt }
     ],
-    model: "llama-3.1-8b-instant",
-    temperature: 0.2,
+    model: "deepseek-r1-distill-llama-70b",
+    temperature: 0.3,
     max_completion_tokens: 1024,
     top_p: 0.95,
   });
@@ -30,7 +31,7 @@ async function callOpenRouterModel(systemInstruction, userPrompt) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: "google/gemini-flash-1.5",
+      model: "openai/gpt-4o-mini",
       messages: [
         { role: "system", content: systemInstruction },
         { role: "user", content: userPrompt }
@@ -57,11 +58,14 @@ export async function processSmartAIResponse(userPrompt, dynamicMemory = []) {
   try {
     return await callGroqModel(systemInstruction, userPrompt);
   } catch (groqError) {
+    console.error("Groq AI Error Details:", groqError);
+    captureException(groqError, { context: "callGroqModel" });
     try {
       return await callOpenRouterModel(systemInstruction, userPrompt);
     } catch (openRouterError) {
-      console.error("AI Services Errors:", { groqError, openRouterError });
-      return `عذراً، حدث خطأ في خدمات الذكاء الاصطناعي المتاحة. ❌\nيرجى التأكد من ضبط مفتاح GROQ_API_KEY أو OPENROUTER_API_KEY في إعدادات Vercel.`;
+      console.error("OpenRouter AI Error Details:", openRouterError);
+      captureException(openRouterError, { context: "callOpenRouterModel" });
+      return `عذراً، حدث خطأ في خدمات الذكاء الاصطناعي. ❌\nالسبب التقني: ${groqError.message || openRouterError.message}`;
     }
   }
 }
