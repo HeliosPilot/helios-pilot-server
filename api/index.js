@@ -1,7 +1,7 @@
 import { kv } from '@vercel/kv';
 import { initSentry, captureException } from '../services/sentry.js';
 import { sendTelegramMessage, answerTelegramCallback, setTelegramMessageReaction } from '../services/telegram.js';
-import { verifyGitHubSignature, addCommentToIssueOrPR, parseAndFetchGitHubUrl, fetchAppInstallationsAndRepos } from '../services/github.js';
+import { verifyGitHubSignature, addCommentToIssueOrPR, parseAndFetchGitHubUrl, fetchAppInstallationsAndRepos, getInstallationOctokitForRepo } from '../services/github.js';
 import { processSmartAIResponse } from '../services/ai.js';
 
 // Initialize Sentry error tracking
@@ -59,7 +59,7 @@ async function triageAndLabelIssue(owner, repo, issueNumber, issueTitle, issueBo
     const aiResponse = await processSmartAIResponse(prompt, dynamicMemory);
     const suggestedLabels = aiResponse.toLowerCase().match(/(bug|enhancement|security|documentation|core)/g) || ["bug"];
 
-    const repoOctokit = await import('../services/github.js').then(m => m.getInstallationOctokitForRepo(owner, repo));
+    const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
     if (!repoOctokit) return;
 
     await repoOctokit.issues.addLabels({
@@ -77,6 +77,21 @@ async function triageAndLabelIssue(owner, repo, issueNumber, issueTitle, issueBo
     });
   } catch (err) {
     captureException(err, { context: "triageAndLabelIssue" });
+  }
+}
+
+// دالة RAG الخفيفة لجلب هيكل الكود من المستودع للإجابة بدقة
+async function fetchCodebaseContextForRAG(owner = "Ismail-Benali", repo = "HELIOS-NET") {
+  try {
+    const octokit = await getInstallationOctokitForRepo(owner, repo);
+    if (!octokit) return "Repository structure unavailable.";
+
+    const { data: contents } = await octokit.repos.getContent({ owner, repo, path: "" });
+    const fileList = Array.isArray(contents) ? contents.map(f => `${f.type === 'dir' ? '📁' : '📄'} ${f.name}`).join("\n") : "Root entry";
+
+    return `Repository: ${owner}/${repo}\nFile Structure:\n${fileList}`;
+  } catch (err) {
+    return "Repository context fetch failed.";
   }
 }
 
@@ -185,7 +200,7 @@ export default async function handler(req, res) {
               const parsedPr = await parseAndFetchGitHubUrl(runUrl);
               const autoFix = await processSmartAIResponse(`Generate an elite English auto-fix for this CI/CD failure in HELIOS-NET:\n${parsedPr}`, memory.dynamicMemory);
 
-              const repoOctokit = await import('../services/github.js').then(m => m.getInstallationOctokitForRepo(owner, repo));
+              const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
               if (repoOctokit) {
                 await repoOctokit.pulls.create({
                   owner,
@@ -265,7 +280,6 @@ export default async function handler(req, res) {
         const issueTitle = ghPayload.issue.title;
         const issueBody = ghPayload.issue.body || "لا يوجد وصف";
         const issueUrl = ghPayload.issue.html_url;
-        const repoName = ghPayload.repository?.full_name || "HELIOS-NET";
         const owner = ghPayload.repository?.owner?.login;
         const repo = ghPayload.repository?.name;
         const issueNumber = ghPayload.issue.number;
@@ -295,7 +309,6 @@ export default async function handler(req, res) {
       if (event === "pull_request" && (ghPayload.action === "opened" || ghPayload.action === "synchronize")) {
         const prTitle = ghPayload.pull_request.title;
         const prUrl = ghPayload.pull_request.html_url;
-        const repoName = ghPayload.repository?.full_name || "HELIOS-NET";
 
         memory.lastContextUrl = prUrl;
         await saveRuntimeMemory(memory);
@@ -328,10 +341,7 @@ export default async function handler(req, res) {
       const senderChatId = payload.message.chat?.id?.toString();
       const messageId = payload.message.message_id;
 
-      // العميل المستهدف للردود هو دائماً الشات الذي أرسل منه المستخدِم الرسالة!
       const targetChatId = senderChatId || envChatId;
-
-            // تنظيف اسم الأمر (إزالة الرموز مثل @BotName والمسافات)
       const cleanCmd = userTextLower.split('@')[0].split(' ')[0].trim();
 
       // أ) الأوامر العامة المتاحة لجميع المستخدمين (/start و /help)
@@ -342,22 +352,21 @@ export default async function handler(req, res) {
           `• \`/clear\` - إعادة تهيئة السياق الهندسي\n` +
           `• \`المستودعات\` - عرض المستودعات المحمية\n` +
           `• \`/metrics\` - مقاييس جودة الكود الهندسي\n` +
-          `• \`/weekly\` - التقرير الأسبوعي الأمني`;
+          `• \`/weekly\` - التقرير الأسبوعي الأمني\n` +
+          `• *(اسألني أي سؤال عن الكود وسأجيبك عبر Codebase RAG!)*`;
         await sendTelegramMessage(targetChatId, helpText);
         return res.status(200).json({ success: true });
       }
 
-      // ب) فحص الصلاحيات للأوامر الحساسة (إذا تم ضبط TELEGRAM_CHAT_ID في الإعدادات)
+      // ب) فحص الصلاحيات للأوامر الحساسة
       if (envChatId && senderChatId && senderChatId !== envChatId.toString()) {
         await sendTelegramMessage(senderChatId, "⛔ **عذراً، أنت لا تملك صلاحية استخدام هذا البوت.**");
         return res.status(200).json({ success: false });
       }
 
-      // تفعيل التفاعل الآلي بـ Emoji
       await setTelegramMessageReaction(targetChatId, messageId, "🧠");
       const memory = await getRuntimeMemory();
 
-      // حفظ القواعد والتوجيهات الهندسية الهامة في الذاكرة
       if (!userText.startsWith("/") && userText.length > 15 && (userText.includes("قاعدة") || userText.includes("هندسة") || userText.includes("أمان") || userText.includes("مهم") || userText.includes("helios"))) {
         memory.dynamicMemory.push(userText);
         if (memory.dynamicMemory.length > 25) {
@@ -410,7 +419,7 @@ export default async function handler(req, res) {
       }
 
       if (userTextLower.includes("اضف تعليق") || userTextLower.includes("اكتب تعليق") || userTextLower.includes("تعليق")) {
-        const urlMatch = userText.match(/https:\/\/github\.com\/[^\s]+/);
+        const urlMatch = userText.match(/https?:\/\/(www\.)?github\.com\/[^\s]+/);
         let targetUrl = urlMatch ? urlMatch[0] : memory.lastContextUrl;
 
         if (!targetUrl) {
@@ -456,12 +465,16 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true });
       }
 
-      // د) الرد الذكي الافتراضي في حالة المحادثات العامة
+      // د) Codebase RAG: الرد الذكي مع جلب سياق الكود الحقيقي للمستودع عند طرح أي سؤال عام
       try {
-        const replyText = await processSmartAIResponse(userText, memory.dynamicMemory);
-        await sendTelegramMessage(targetChatId, replyText ?? "🤖 HeliosPilot: تم استقبال رسالتك وجاري معالجتها تقنياً...");
+        await sendTelegramMessage(targetChatId, "🧠 جاري البحث في بنية الكود والمستودع...");
+        const codebaseContext = await fetchCodebaseContextForRAG();
+        const promptWithContext = `User Question: ${userText}\n\nReal Codebase Context from HELIOS-NET:\n${codebaseContext}`;
+        
+        const replyText = await processSmartAIResponse(promptWithContext, memory.dynamicMemory);
+        await sendTelegramMessage(targetChatId, replyText ?? "🤖 HeliosPilot: تم استقبال رسالتك ولكناجهز رداً تقنياً...");
       } catch (aiError) {
-        captureException(aiError, { context: "processSmartAIResponse" });
+        captureException(aiError, { context: "codebaseRAG" });
         await sendTelegramMessage(targetChatId, "🤖 HeliosPilot: استقبلتُ رسالتك ولكن واجهت صعوبة في المعالجة التقنية حالياً. حاول مرة أخرى لاحقاً. ⚡");
       }
 
