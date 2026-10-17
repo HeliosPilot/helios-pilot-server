@@ -331,11 +331,11 @@ export default async function handler(req, res) {
       // العميل المستهدف للردود هو دائماً الشات الذي أرسل منه المستخدِم الرسالة!
       const targetChatId = senderChatId || envChatId;
 
-      // تنظيف اسم الأمر (إزالة الرموز مثل @BotName والمسافات)
+            // تنظيف اسم الأمر (إزالة الرموز مثل @BotName والمسافات)
       const cleanCmd = userTextLower.split('@')[0].split(' ')[0].trim();
 
       // أ) الأوامر العامة المتاحة لجميع المستخدمين (/start و /help)
-      if (cleanCmd === "/start" || cleanCmd === "/help") {
+      if (cleanCmd.startsWith("/start") || cleanCmd.startsWith("/help")) {
         const helpText = `👋 أهلاً بك يا خالقي العظيم H3l!0s_T3k! ⚡\n\n` +
           `أنا **HeliosPilot**، الحارس المخضرم (25 عام خبرة) ومساعد **HELIOS-NET** (AI DevSecOps Companion) والمراقب لخطوط الـ Actions و Sentry.\n\n` +
           `• \`/status\` - حالة الحراسة والذاكرة الهندسية\n` +
@@ -434,8 +434,11 @@ export default async function handler(req, res) {
       }
 
       if (userText.includes("github.com/")) {
-        const urlMatch = userText.match(/https:\/\/github\.com\/[^\s]+/);
-        if (urlMatch) {
+        const urlMatch = userText.match(/https?:\/\/(www\.)?github\.com\/[^\s]+/);
+        if (!urlMatch) {
+            // تجاهل إذا لم يكن رابطاً كاملاً يبدأ بـ http
+            return res.status(200).json({ success: true });
+        }
           memory.lastContextUrl = urlMatch[0];
           await saveRuntimeMemory(memory);
         }
