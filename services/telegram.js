@@ -10,20 +10,24 @@ export async function sendTelegramMessage(chatId, text, replyMarkup = null) {
     try {
       const bodyData = {
         chat_id: chatId,
-        text: chunk,
-        parse_mode: "Markdown"
+        text: chunk
       };
       if (replyMarkup) {
         bodyData.reply_markup = replyMarkup;
       }
 
-      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(bodyData),
       });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        console.error("Telegram API Error Response:", errData);
+      }
     } catch (err) {
-      console.error("Telegram Send Error:", err);
+      console.error("Telegram Send Exception:", err);
     }
   }
 }
