@@ -70,7 +70,7 @@ export async function getInstallationOctokitForRepo(owner, repo) {
 export async function addCommentToIssueOrPR(url, commentBody) {
   try {
     const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)\/(issues|pull)\/(\d+)/);
-    if (!match) return "⚠️ رابط GitHub غير صالح لإضافة التعليق.";
+    if (!match) return "⚠️ رابط GitHub غير صالح لإضافة تعليق (يجب أن يكون رابط Issue أو Pull Request مباشر).";
 
     const [, owner, repo, type, number] = match;
     const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
@@ -133,10 +133,26 @@ export async function parseAndFetchGitHubUrl(url) {
         `📂 **Modified Files (${files.length}):**\n${filesSummary}`;
     }
 
+    const actionsMatch = url.match(/github\.com\/([^\/]+)\/([^\/]+)\/actions/);
+    if (actionsMatch) {
+      const [, owner, repo] = actionsMatch;
+      const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
+      if (!repoOctokit) return `🛑 المستودع \`${owner}/${repo}\` غير مرتبط بـ GitHub App.`;
+
+      const { data: runsData } = await repoOctokit.actions.listWorkflowRunsForRepo({ owner, repo, per_page: 5 });
+      const runsSummary = runsData.workflow_runs.map(r => 
+        `- **${r.name}** (#${r.run_number}): \`${r.conclusion || r.status}\` (${r.html_url})`
+      ).join("\n");
+
+      return `🚀 **GitHub Actions Workflows (${owner}/${repo}):**\n` +
+        `Total Runs Found: ${runsData.total_count}\n` +
+        `Recent Runs:\n${runsSummary || "No workflow runs found."}`;
+    }
+
     const repoMatch = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
     if (repoMatch) {
       const owner = repoMatch[1];
-      const repo = repoMatch[2].replace(/\/$/, "");
+      const repo = repoMatch[2].replace(/\/(issues|pulls|actions|settings|tree.*)?$/, "");
 
       const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
       if (!repoOctokit) return `🛑 المستودع \`${owner}/${repo}\` غير مرتبط بـ GitHub App.`;

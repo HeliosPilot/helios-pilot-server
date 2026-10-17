@@ -1,17 +1,17 @@
 import { Groq } from "groq-sdk";
 import fetch from "node-fetch";
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
-
 async function callGroqModel(systemInstruction, userPrompt) {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error("GROQ_API_KEY is not set");
+
+  const groq = new Groq({ apiKey });
   const chatCompletion = await groq.chat.completions.create({
     messages: [
       { role: "system", content: systemInstruction },
       { role: "user", content: userPrompt }
     ],
-    model: "qwen/qwen3.8-27b",
+    model: "llama-3.3-70b-versatile",
     temperature: 0.2,
     max_completion_tokens: 1024,
     top_p: 0.95,
@@ -30,7 +30,7 @@ async function callOpenRouterModel(systemInstruction, userPrompt) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: "google/gemini-flash-1.5",
+      model: "google/gemini-2.0-flash-001",
       messages: [
         { role: "system", content: systemInstruction },
         { role: "user", content: userPrompt }
@@ -51,7 +51,7 @@ export async function processSmartAIResponse(userPrompt, dynamicMemory = []) {
 
 قواعد العمل الصارمة جداً:
 1. أنت خبير تقني عالي الاحترافية. عند كتابة أو اقتراح أي أكواد برمجية، يجب أن تكون التعليقات داخل الكود (Code Comments) مكتوبة **باللغة الإنجليزية حصراً** ووفقاً لأرقى المعايير العالمية (Enterprise Standards).
-2. استخدم الإيموجيات المعبرة بحروية في ردودك على تيليجرام (مثل ⚡, 🛡️, 🔥, 🧠, 🚀, 💡) لتعكس ديناميكية وقوة الحراسة.
+2. استخدم الإيموجيات المعبرة بحيوية في ردودك على تيليجرام (مثل ⚡, 🛡️, 🔥, 🧠, 🚀, 💡) لتعكس ديناميكية وقوة الحراسة.
 3. كن دقيقاً، صارماً، تقنياً بحتاً، وباللغة العربية الفصحى للرد على المستخدِم، بدون أي مجاملة فارغة.`;
 
   try {
@@ -60,7 +60,8 @@ export async function processSmartAIResponse(userPrompt, dynamicMemory = []) {
     try {
       return await callOpenRouterModel(systemInstruction, userPrompt);
     } catch (openRouterError) {
-      return `عذراً، حدث خطأ في خدمات الذكاء الاصطناعي المتاحة. ❌`;
+      console.error("AI Services Errors:", { groqError, openRouterError });
+      return `عذراً، حدث خطأ في خدمات الذكاء الاصطناعي المتاحة. ❌\nيرجى التأكد من ضبط مفتاح GROQ_API_KEY أو OPENROUTER_API_KEY في إعدادات Vercel.`;
     }
   }
 }

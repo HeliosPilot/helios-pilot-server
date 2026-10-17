@@ -4,7 +4,7 @@ import { sendTelegramMessage, answerTelegramCallback, setTelegramMessageReaction
 import { verifyGitHubSignature, addCommentToIssueOrPR, parseAndFetchGitHubUrl, fetchAppInstallationsAndRepos } from '../services/github.js';
 import { processSmartAIResponse } from '../services/ai.js';
 
-// Initialize Sentry monitoring
+// Initialize Sentry error tracking
 initSentry();
 
 const DEFAULT_MEMORY = {
@@ -43,12 +43,12 @@ async function generateWeeklySummary() {
       `- **المالك:** \`${memory.creator}\`\n` +
       `- **المشروع:** ${memory.targetProject}\n` +
       `- **المستودعات المحمية:** ${repos.length > 0 ? repos.length : "لا يوجد"} مستودع\n\n` +
-      `_النظام يعمل بكفاءة ويحمل حراسة مستمرة._ 🛡️`;
+      `_النظام يعمل بكفاءة وحراسة مستمرة مفعّلة._ 🛡️`;
     
     return summary;
   } catch (err) {
     captureException(err, { context: "generateWeeklySummary" });
-    return `⚠️ حدث خطأ في توليد التقرير الأسبوعي.`;
+    return `⚠️ حدث خطأ أثناء توليد التقرير الأسبوعي.`;
   }
 }
 
@@ -81,33 +81,34 @@ async function triageAndLabelIssue(owner, repo, issueNumber, issueTitle, issueBo
 }
 
 export default async function handler(req, res) {
+  const envChatId = process.env.TELEGRAM_CHAT_ID;
+
   if (req.method === "GET" && req.query.cron === "true") {
-    const chatId = process.env.TELEGRAM_CHAT_ID;
-    if (chatId) {
+    if (envChatId) {
       const repos = await fetchAppInstallationsAndRepos();
       const digest = `🛡️ **HELIOS-NET Security & Actions Monitoring (HeliosPilot):**\n\n` +
         `• **حالة الحراسة والـ Actions:** نشطة وتراقب خطوط البناء والاختبارات ⚡\n` +
         `• **المستودعات المحمية:**\n${repos.map(r => `  - ${r}`).join("\n")}\n\n` +
         `_النظام يعمل بأمان ومحمي بـ Vercel KV & Sentry._ 🚀`;
-      await sendTelegramMessage(chatId, digest);
+      await sendTelegramMessage(envChatId, digest);
     }
     return res.status(200).json({ status: "Security actions briefing dispatched successfully" });
   }
 
   if (req.method !== "POST") {
-    return res.status(200).json({ status: "HeliosPilot Veteran AI DevSecOps Companion with Actions Monitoring is online! ⚡" });
+    return res.status(200).json({ status: "HeliosPilot Veteran AI DevSecOps Companion is online! ⚡" });
   }
 
   try {
     const payload = req.body || {};
-    const chatId = process.env.TELEGRAM_CHAT_ID;
 
+    // 1. التعامل مع نقرات الأزرار التفاعلية (Callback Query)
     if (payload.callback_query) {
       const callbackQuery = payload.callback_query;
-      const queryChatId = callbackQuery.message?.chat?.id?.toString();
+      const queryChatId = callbackQuery.message?.chat?.id?.toString() || envChatId;
       const messageId = callbackQuery.message?.message_id;
 
-      if (chatId && queryChatId !== chatId.toString()) {
+      if (envChatId && queryChatId !== envChatId.toString()) {
         await answerTelegramCallback(callbackQuery.id, "⛔ غير مسموح لك باستخدام هذه الأزرار.");
         return res.status(200).json({ success: false });
       }
@@ -134,6 +135,10 @@ export default async function handler(req, res) {
         const runUrl = data.replace("autofix:", "");
         await answerTelegramCallback(callbackQuery.id, "🛠️ جاري تحليل فشل الـ CI/CD Actions...");
         await sendTelegramMessage(queryChatId, `🛠️ **HeliosPilot Auto-Patch Engine:**\nتحليل فشل الـ Actions جاري. رابط العملية:\n${runUrl}`);
+      } else if (data.startsWith("viewpr:")) {
+        const runUrl = data.replace("viewpr:", "");
+        await answerTelegramCallback(callbackQuery.id, "🔍 جاري جلب تفاصيل الـ PR...");
+        await sendTelegramMessage(queryChatId, `🔗 **رابط العملية المنفذة:**\n${runUrl}`);
       } else if (data.startsWith("patchvuln:")) {
         const vulnInfo = data.replace("patchvuln:", "");
         await answerTelegramCallback(callbackQuery.id, "🛡️ تجهيز الترقيع الأمني...");
@@ -145,6 +150,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true });
     }
 
+    // 2. التعامل مع أحداث GitHub Webhooks
     if (req.headers["x-github-event"]) {
       if (!verifyGitHubSignature(req)) {
         return res.status(401).json({ error: "Invalid GitHub Webhook Signature" });
@@ -153,8 +159,8 @@ export default async function handler(req, res) {
       const event = req.headers["x-github-event"];
       const ghPayload = req.body;
       const memory = await getRuntimeMemory();
+      const targetNotifyChatId = envChatId;
 
-      // مراقبة أحداث خطوط البناء والـ Actions (workflow_run & check_run)
       if (event === "workflow_run" && ghPayload.action === "completed") {
         const workflowName = ghPayload.workflow_run?.name || "Workflow";
         const conclusion = ghPayload.workflow_run?.conclusion;
@@ -164,61 +170,42 @@ export default async function handler(req, res) {
         const repo = ghPayload.repository?.name;
 
         if (conclusion === "failure") {
-          if (!owner || !repo) {
-            await sendTelegramMessage(chatId, `❌ **فشل في خط البناء Actions!** 🔥\n\n` +
+          if (targetNotifyChatId) {
+            await sendTelegramMessage(targetNotifyChatId, `❌ **فشل في خط البناء Actions (HELIOS-NET)!** 🔥\n\n` +
               `• **العملية:** ${workflowName}\n` +
               `• **المستودع:** ${repoName}\n` +
-              `• **لا يمكن إنشاء PR تلقائياً:** غير متصل بـ GitHub App`);
-            return res.status(200).json({ success: true });
-          }
-
-          await sendTelegramMessage(chatId, `🛠️ **HeliosPilot Auto-Patch Engine** فعال...\n\n` +
-            `• **اكتشاف فشل:** ${workflowName}\n` +
-            `• **المستودع:** \`${owner}/${repo}\`\n` +
-            `• **الحالة:** FAILED 🔴\n\n` +
-            `🤖 **جاري تحليل الفشل وإنشاء تصحيح آلي...**`);
-
-          try {
-            const parsedPr = await parseAndFetchGitHubUrl(runUrl);
-            const autoFix = await processSmartAIResponse(`Generate an elite English auto-fix for this CI/CD failure in HELIOS-NET:\n${parsedPr}`, memory.dynamicMemory);
-
-            const repoOctokit = await import('../services/github.js').then(m => m.getInstallationOctokitForRepo(owner, repo));
-            if (repoOctokit) {
-              await repoOctokit.pulls.create({
-                owner,
-                repo,
-                title: `🛠️ Auto-Patch: ${workflowName} Fix`,
-                body: `⚡ **HeliosPilot Auto-Patch Engine** detected a build failure and applied automatic fixes.\n\n** failing workflow:** ${workflowName}\n** Analysis:** ${autoFix}`,
-                head: `helios-pilot/auto-patch-${new Date().getTime()}`,
-                base: "main"
+              `• **الحالة:** FAILED 🔴\n` +
+              `• **الرابط المباشر:** ${runUrl}`, {
+                inline_keyboard: [[{ text: "🛠️ طلب تصحيح آلي (Auto-Patch)", callback_data: `autofix:${runUrl}` }]]
               });
-              await sendTelegramMessage(chatId, `✅ **Auto-Patch تم إنشاؤه successfully!** ⚡\n\n` +
-                `• **PR:** \`${owner}/${repo}\`\n` +
-                `• **عنوان الخط:** Auto-Patch: ${workflowName} Fix\n` +
-                `• **تم إنشاؤه من قبل:** HeliosPilot Veteran DevSecOps`);
-            } else {
-              await sendTelegramMessage(chatId, `🛑 **لا يمكن إنشاء PR:** المستودع غير مرتبط بـ GitHub App.`);
-            }
-          } catch (err) {
-            captureException(err, { context: "autoPatchWorkflow" });
-            await sendTelegramMessage(chatId, `⚠️ **Auto-Patch فشل:** حدث خطأ أثناء التحليل. برجاء استخدام الزر اليدوي.`);
           }
 
-          const inlineKeyboard = {
-            inline_keyboard: [
-              [
-                { text: "🛠️ عرض PR المقترح", callback_data: `viewpr:${runUrl}` }
-              ]
-            ]
-          };
+          if (owner && repo) {
+            try {
+              const parsedPr = await parseAndFetchGitHubUrl(runUrl);
+              const autoFix = await processSmartAIResponse(`Generate an elite English auto-fix for this CI/CD failure in HELIOS-NET:\n${parsedPr}`, memory.dynamicMemory);
 
-          await sendTelegramMessage(chatId, `❌ **فشل في خط البناء Actions (HELIOS-NET)!** 🔥\n\n` +
-            `• **العملية:** ${workflowName}\n` +
-            `• **المستودع:** ${repoName}\n` +
-            `• **الحالة:** FAILED 🔴\n` +
-            `• **الرابط المباشر:** ${runUrl}`, inlineKeyboard);
-        } else if (conclusion === "success") {
-          await sendTelegramMessage(chatId, `✅ **نجاح خط البناء Actions في ${repoName}!** ⚡\n\n` +
+              const repoOctokit = await import('../services/github.js').then(m => m.getInstallationOctokitForRepo(owner, repo));
+              if (repoOctokit) {
+                await repoOctokit.pulls.create({
+                  owner,
+                  repo,
+                  title: `🛠️ Auto-Patch: ${workflowName} Fix`,
+                  body: `⚡ **HeliosPilot Auto-Patch Engine** detected a build failure and generated automated patch analysis.\n\n**Failing Workflow:** ${workflowName}\n**Analysis & Solution:**\n${autoFix}`,
+                  head: `helios-pilot/auto-patch-${Date.now()}`,
+                  base: "main"
+                });
+
+                if (targetNotifyChatId) {
+                  await sendTelegramMessage(targetNotifyChatId, `✅ **Auto-Patch PR تم إنشاؤه بنجاح!** ⚡\n• **المستودع:** \`${owner}/${repo}\`\n• **عنوان الـ PR:** Auto-Patch: ${workflowName} Fix`);
+                }
+              }
+            } catch (err) {
+              captureException(err, { context: "autoPatchWorkflow" });
+            }
+          }
+        } else if (conclusion === "success" && targetNotifyChatId) {
+          await sendTelegramMessage(targetNotifyChatId, `✅ **نجاح خط البناء Actions في ${repoName}!** ⚡\n\n` +
             `• **العملية:** ${workflowName}\n` +
             `• **الحالة:** SUCCESS 🟢\n` +
             `• **الرابط:** ${runUrl}`);
@@ -232,8 +219,8 @@ export default async function handler(req, res) {
         const checkUrl = ghPayload.check_run?.html_url;
         const repoName = ghPayload.repository?.full_name || "HELIOS-NET";
 
-        if (conclusion === "failure") {
-          await sendTelegramMessage(chatId, `❌ **فشل اختبار Check Run في ${repoName}!** 🔥\n\n` +
+        if (conclusion === "failure" && targetNotifyChatId) {
+          await sendTelegramMessage(targetNotifyChatId, `❌ **فشل اختبار Check Run في ${repoName}!** 🔥\n\n` +
             `• **الاختبار:** ${checkName}\n` +
             `• **الرابط:** ${checkUrl}`);
         }
@@ -257,19 +244,19 @@ export default async function handler(req, res) {
 
         const aiPatch = await processSmartAIResponse(`Provide an elite English security patch recommendation for HELIOS-NET:\nTitle: ${alertTitle}\nDetails: ${alertDesc}`, memory.dynamicMemory);
 
-        const inlineKeyboard = {
-          inline_keyboard: [
-            [
-              { text: "🛡️ تطبيق الترقيع (Patch)", callback_data: `patchvuln:${repoName}` },
-              { text: "✅ تجاهل", callback_data: "dismiss" }
-            ]
-          ]
-        };
-
-        await sendTelegramMessage(chatId, `🚨 **تنبيه أمني عاجل لمشروع HELIOS-NET!** ⚡\n\n` +
-          `• **النوع:** ${alertTitle}\n` +
-          `• **التفاصيل:** ${alertDesc}\n\n` +
-          `🤖 **مقترح الترقيح الآلي:**\n${aiPatch}`, inlineKeyboard);
+        if (targetNotifyChatId) {
+          await sendTelegramMessage(targetNotifyChatId, `🚨 **تنبيه أمني عاجل لمشروع HELIOS-NET!** ⚡\n\n` +
+            `• **النوع:** ${alertTitle}\n` +
+            `• **التفاصيل:** ${alertDesc}\n\n` +
+            `🤖 **مقترح الترقيح الآلي:**\n${aiPatch}`, {
+              inline_keyboard: [
+                [
+                  { text: "🛡️ تطبيق الترقيع (Patch)", callback_data: `patchvuln:${repoName}` },
+                  { text: "✅ تجاهل", callback_data: "dismiss" }
+                ]
+              ]
+            });
+        }
 
         return res.status(200).json({ success: true });
       }
@@ -291,17 +278,17 @@ export default async function handler(req, res) {
         }
 
         const aiReply = await processSmartAIResponse(`Analyze this new Issue for HELIOS-NET:\nTitle: ${issueTitle}\nBody: ${issueBody}`, memory.dynamicMemory);
-        
-        const inlineKeyboard = {
-          inline_keyboard: [
-            [
-              { text: "💬 إضافة تعليق تقني", callback_data: `comment:${issueUrl}` },
-              { text: "✅ تجاهل", callback_data: "dismiss" }
-            ]
-          ]
-        };
 
-        await sendTelegramMessage(chatId, `🚨 *Issue جديدة في HELIOS-NET!* 🧠\n\n📌 *العنوان:* ${issueTitle}\n🔗 *الرابط:* ${issueUrl}\n\n🤖 *تحليل الحارس المخضرم:* \n${aiReply}`, inlineKeyboard);
+        if (targetNotifyChatId) {
+          await sendTelegramMessage(targetNotifyChatId, `🚨 *Issue جديدة في HELIOS-NET!* 🧠\n\n📌 *العنوان:* ${issueTitle}\n🔗 *الرابط:* ${issueUrl}\n\n🤖 *تحليل الحارس المخضرم:* \n${aiReply}`, {
+            inline_keyboard: [
+              [
+                { text: "💬 إضافة تعليق تقني", callback_data: `comment:${issueUrl}` },
+                { text: "✅ تجاهل", callback_data: "dismiss" }
+              ]
+            ]
+          });
+        }
         return res.status(200).json({ success: true });
       }
 
@@ -318,61 +305,74 @@ export default async function handler(req, res) {
         
         await addCommentToIssueOrPR(prUrl, `🛡️ **HeliosPilot Veteran DevSecOps Review:**\n\n${aiReview}`);
 
-        const inlineKeyboard = {
-          inline_keyboard: [
-            [
-              { text: "🛡️ نشر مراجعة أمنية جديدة", callback_data: `review:${prUrl}` },
-              { text: "💬 إضافة تعليق", callback_data: `comment:${prUrl}` }
+        if (targetNotifyChatId) {
+          await sendTelegramMessage(targetNotifyChatId, `🔀 *Pull Request جديد في HELIOS-NET!* 🛡️\n\n📌 *العنوان:* ${prTitle}\n🔗 *الرابط:* ${prUrl}\n\n🤖 *تقرير التدقيق الأمني المخضرم:* \n${aiReview}`, {
+            inline_keyboard: [
+              [
+                { text: "🛡️ نشر مراجعة أمنية جديدة", callback_data: `review:${prUrl}` },
+                { text: "💬 إضافة تعليق", callback_data: `comment:${prUrl}` }
+              ]
             ]
-          ]
-        };
-
-        await sendTelegramMessage(chatId, `🔀 *Pull Request جديد في HELIOS-NET!* 🛡️\n\n📌 *العنوان:* ${prTitle}\n🔗 *الرابط:* ${prUrl}\n\n🤖 *تقرير التدقيق الأمني المخضرم:* \n${aiReview}`, inlineKeyboard);
+          });
+        }
         return res.status(200).json({ success: true });
       }
 
       return res.status(200).json({ received: true });
     }
 
+    // 3. التعامل مع رسائل المستخدِم المحادثات المباشرة في Telegram
     if (payload.message && payload.message.text) {
       const userText = payload.message.text.trim();
       const userTextLower = userText.toLowerCase();
       const senderChatId = payload.message.chat?.id?.toString();
       const messageId = payload.message.message_id;
 
-      if (userText === "/start" || userText === "/help") {
-        const helpText = `👋 أهلاً بك يا خالقي العظيم H3l!0s_T3k! ⚡\n\nأنا **HeliosPilot**، الحارس المخضرم (25 عام خبرة) ومساعد **HELIOS-NET** (AI DevSecOps Companion) والمراقب لخطوط الـ Actions و Sentry.\n` +
+      // العميل المستهدف للردود هو دائماً الشات الذي أرسل منه المستخدِم الرسالة!
+      const targetChatId = senderChatId || envChatId;
+
+      // تنظيف اسم الأمر (إزالة الرموز مثل @BotName والمسافات)
+      const cleanCmd = userTextLower.split('@')[0].split(' ')[0].trim();
+
+      // أ) الأوامر العامة المتاحة لجميع المستخدمين (/start و /help)
+      if (cleanCmd === "/start" || cleanCmd === "/help") {
+        const helpText = `👋 أهلاً بك يا خالقي العظيم H3l!0s_T3k! ⚡\n\n` +
+          `أنا **HeliosPilot**، الحارس المخضرم (25 عام خبرة) ومساعد **HELIOS-NET** (AI DevSecOps Companion) والمراقب لخطوط الـ Actions و Sentry.\n\n` +
           `• \`/status\` - حالة الحراسة والذاكرة الهندسية\n` +
-          `• \`/clear\` - إعادة تهيئة السياق\n` +
+          `• \`/clear\` - إعادة تهيئة السياق الهندسي\n` +
           `• \`المستودعات\` - عرض المستودعات المحمية\n` +
-          `• \`/metrics\` - مقاييس جودة الكود\n` +
-          `• \`/weekly\` - التقرير الأسبوعي`;
-        await sendTelegramMessage(chatId, helpText);
+          `• \`/metrics\` - مقاييس جودة الكود الهندسي\n` +
+          `• \`/weekly\` - التقرير الأسبوعي الأمني`;
+        await sendTelegramMessage(targetChatId, helpText);
         return res.status(200).json({ success: true });
       }
 
-      if (chatId && senderChatId !== chatId.toString()) {
+      // ب) فحص الصلاحيات للأوامر الحساسة (إذا تم ضبط TELEGRAM_CHAT_ID في الإعدادات)
+      if (envChatId && senderChatId && senderChatId !== envChatId.toString()) {
         await sendTelegramMessage(senderChatId, "⛔ **عذراً، أنت لا تملك صلاحية استخدام هذا البوت.**");
         return res.status(200).json({ success: false });
       }
 
-      await setTelegramMessageReaction(senderChatId, messageId, "🧠");
+      // تفعيل التفاعل الآلي بـ Emoji
+      await setTelegramMessageReaction(targetChatId, messageId, "🧠");
       const memory = await getRuntimeMemory();
 
+      // حفظ القواعد والتوجيهات الهندسية الهامة في الذاكرة
       if (!userText.startsWith("/") && userText.length > 15 && (userText.includes("قاعدة") || userText.includes("هندسة") || userText.includes("أمان") || userText.includes("مهم") || userText.includes("helios"))) {
         memory.dynamicMemory.push(userText);
         if (memory.dynamicMemory.length > 25) {
           memory.dynamicMemory.shift();
         }
-await saveRuntimeMemory(memory);
+        await saveRuntimeMemory(memory);
       }
 
-      if (userText === "/status") {
+      // ج) الأوامر الفردية المنفصلة بأولوية صارمة
+      if (cleanCmd === "/status") {
         const memoryItems = memory.dynamicMemory.length > 0 
-          ? memory.dynamicMemory.slice(-5).map((m, i) => `${i+1}. ${m}`).join("\n") 
+          ? memory.dynamicMemory.slice(-5).map((m, i) => `${i + 1}. ${m}`).join("\n") 
           : "لا توجد ملاحظات هندسية مسجلة بعد.";
 
-        await sendTelegramMessage(chatId, `⚡ *حالة حارس HELIOS-NET (Actions & Sentry Monitored):* \n\n` +
+        await sendTelegramMessage(targetChatId, `⚡ *حالة حارس HELIOS-NET (Actions & Sentry Monitored):* \n\n` +
           `- **المالك:** \`${memory.creator}\`\n` +
           `- **المشروع المحمي:** ${memory.targetProject}\n` +
           `- **آخر رابط في السياق:** ${memory.lastContextUrl || "لا يوجد"}\n` +
@@ -380,10 +380,32 @@ await saveRuntimeMemory(memory);
         return res.status(200).json({ success: true });
       }
 
-      if (userText === "/clear") {
+      if (cleanCmd === "/clear") {
         memory.lastContextUrl = null;
         await saveRuntimeMemory(memory);
-        await sendTelegramMessage(chatId, "🧹 تم إعادة تهيئة السياق الهندسي بنجاح. ⚡");
+        await sendTelegramMessage(targetChatId, "🧹 تم إعادة تهيئة السياق الهندسي بنجاح. ⚡");
+        return res.status(200).json({ success: true });
+      }
+
+      if (cleanCmd === "/metrics") {
+        await sendTelegramMessage(targetChatId, "🔧 **HeliosPilot Code Metrics**...\n\nجاري تحليل مقاييس الكود مع خبير 25 سنة...");
+        const metrics = await processSmartAIResponse(`Analyze code metrics for HELIOS-NET: complexity, maintainability, and suggest improvements. Provide technical English comments only.`, memory.dynamicMemory);
+        await sendTelegramMessage(targetChatId, `📊 *مقاييس HELIOS-NET المخضرم:*\n\n${metrics}`, {
+          inline_keyboard: [[{ text: "🔄 تحليل مرة أخرى", callback_data: `comment:${memory.targetProject}` }]]
+        });
+        return res.status(200).json({ success: true });
+      }
+
+      if (cleanCmd === "/weekly") {
+        const weeklySummary = await generateWeeklySummary();
+        await sendTelegramMessage(targetChatId, weeklySummary);
+        return res.status(200).json({ success: true });
+      }
+
+      if (cleanCmd === "المستودعات" || cleanCmd === "repos" || cleanCmd === "repository" || userTextLower.includes("المستودعات") || userTextLower.includes("repos")) {
+        await sendTelegramMessage(targetChatId, "🔍 جاري فحص المستودعات المحمية...");
+        const repos = await fetchAppInstallationsAndRepos();
+        await sendTelegramMessage(targetChatId, `📂 *المستودعات المحمية (HELIOS-NET Ecosystem):*\n\n${repos.map(r => `• ${r}`).join("\n")}`);
         return res.status(200).json({ success: true });
       }
 
@@ -392,22 +414,22 @@ await saveRuntimeMemory(memory);
         let targetUrl = urlMatch ? urlMatch[0] : memory.lastContextUrl;
 
         if (!targetUrl) {
-          await sendTelegramMessage(chatId, "⚠️ لم أجد رابط Issue أو PR في الرسالة أو السياق السابق.");
+          await sendTelegramMessage(targetChatId, "⚠️ لم أجد رابط Issue أو PR في الرسالة أو السياق السابق.");
           return res.status(200).json({ success: true });
         }
 
         let commentText = userText.replace(targetUrl, "").replace(/اضف تعليق|اكتب تعليق|على|لـ/g, "").trim();
 
         if (!commentText || commentText.length < 3) {
-          await sendTelegramMessage(chatId, `🔍 جاري تحليل الـ Issue/PR وصياغة التعليق التقني بالإنجليزية...`);
+          await sendTelegramMessage(targetChatId, `🔍 جاري تحليل الـ Issue/PR وصياغة التعليق التقني بالإنجليزية...`);
           const issueContent = await parseAndFetchGitHubUrl(targetUrl);
           commentText = await processSmartAIResponse(`Write an elite technical comment in English for HELIOS-NET based on:\n${issueContent}`, memory.dynamicMemory);
         } else {
-          await sendTelegramMessage(chatId, "⏳ جاري النشر على GitHub...");
+          await sendTelegramMessage(targetChatId, "⏳ جاري النشر على GitHub...");
         }
 
         const resultResponse = await addCommentToIssueOrPR(targetUrl, commentText);
-        await sendTelegramMessage(chatId, resultResponse);
+        await sendTelegramMessage(targetChatId, resultResponse);
         return res.status(200).json({ success: true });
       }
 
@@ -418,54 +440,31 @@ await saveRuntimeMemory(memory);
           await saveRuntimeMemory(memory);
         }
 
-        await sendTelegramMessage(chatId, "🔍 جاري تحليل المستودع والتدقيق الأمني... 🛡️");
+        await sendTelegramMessage(targetChatId, "🔍 جاري تحليل المستودع والتدقيق الأمني... 🛡️");
         const extractedData = await parseAndFetchGitHubUrl(userText);
         const aiEvaluation = await processSmartAIResponse(`Analyze this repository data for HELIOS-NET with 25-yr veteran precision:\n${extractedData}`, memory.dynamicMemory);
 
-        const inlineKeyboard = {
+        await sendTelegramMessage(targetChatId, `📊 *تحليل HELIOS-NET المخضرم:*\n\n${aiEvaluation}`, {
           inline_keyboard: [
             [
               { text: "💬 إضافة تعليق تقني", callback_data: `comment:${urlMatch ? urlMatch[0] : memory.lastContextUrl}` },
               { text: "🛡️ تدقيق أمني للـ PR", callback_data: `review:${urlMatch ? urlMatch[0] : memory.lastContextUrl}` }
             ]
           ]
-        };
-
-        await sendTelegramMessage(chatId, `📊 *تحليل HELIOS-NET المخضرم:*\n\n${aiEvaluation}`, inlineKeyboard);
+        });
         return res.status(200).json({ success: true });
       }
 
-      if (userTextLower.includes("المستودعات") || userTextLower.includes("repos") || userTextLower.includes("repository")) {
-        await sendTelegramMessage(chatId, "🔍 جاري فحص المستودعات المحمية...");
-        const repos = await fetchAppInstallationsAndRepos();
-        await sendTelegramMessage(chatId, `📂 *المستودعات المحمية (HELIOS-NET Ecosystem):*\n\n${repos.map(r => `• ${r}`).join("\n")}`);
-        return res.status(200).json({ success: true });
+      // د) الرد الذكي الافتراضي في حالة المحادثات العامة
+      try {
+        const replyText = await processSmartAIResponse(userText, memory.dynamicMemory);
+        await sendTelegramMessage(targetChatId, replyText ?? "🤖 HeliosPilot: تم استقبال رسالتك وجاري معالجتها تقنياً...");
+      } catch (aiError) {
+        captureException(aiError, { context: "processSmartAIResponse" });
+        await sendTelegramMessage(targetChatId, "🤖 HeliosPilot: استقبلتُ رسالتك ولكن واجهت صعوبة في المعالجة التقنية حالياً. حاول مرة أخرى لاحقاً. ⚡");
       }
 
-try {
-      const replyText = await processSmartAIResponse(userText, memory.dynamicMemory);
-      await sendTelegramMessage(chatId, replyText ?? "🤖 HeliosPilot: تم استقبال رسالتك ولكناجهز رداً تقنياً...");
-    } catch (aiError) {
-      captureException(aiError, { context: "processSmartAIResponse" });
-      await sendTelegramMessage(chatId, "🤖 HeliosPilot: استقبلتُ رسالتك ولكنواجهت صعوبة في المعالجة التقنية حالياً.حاول مرة أخرى later. ⚡");
-    }
-
-    if (userText === "/metrics") {
-      await sendTelegramMessage(chatId, "🔧 **HeliosPilot Code Metrics**...\n\nجاري تحليل مقاييس الكود...");
-      const metrics = await processSmartAIResponse(`Analyze code metrics for HELIOS-NET: complexity, maintainability, and suggest improvements. Provide technical English comments only.`, memory.dynamicMemory);
-      await sendTelegramMessage(chatId, `📊 *مقاييس HELIOS-NET المخضرم:*\n\n${metrics}`, {
-        inline_keyboard: [[{ text: "🔄 تحليل مرة أخرى", callback_data: `/metrics` }]]
-      });
       return res.status(200).json({ success: true });
-    }
-
-    if (userText === "/weekly") {
-      const weeklySummary = await generateWeeklySummary();
-      await sendTelegramMessage(chatId, weeklySummary);
-      return res.status(200).json({ success: true });
-    }
-
-    return res.status(200).json({ success: true });
     }
 
     return res.status(200).json({ received: true });
