@@ -12,7 +12,7 @@ async function callGroqModel(systemInstruction, userPrompt) {
       { role: "system", content: systemInstruction },
       { role: "user", content: userPrompt }
     ],
-    model: "deepseek-r1-distill-llama-70b",
+    model: "llama-3.1-8b-instant",
     temperature: 0.3,
     max_completion_tokens: 1024,
     top_p: 0.95,
