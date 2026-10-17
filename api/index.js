@@ -436,12 +436,10 @@ export default async function handler(req, res) {
       if (userText.includes("github.com/")) {
         const urlMatch = userText.match(/https?:\/\/(www\.)?github\.com\/[^\s]+/);
         if (!urlMatch) {
-            // تجاهل إذا لم يكن رابطاً كاملاً يبدأ بـ http
-            return res.status(200).json({ success: true });
+          return res.status(200).json({ success: true });
         }
-          memory.lastContextUrl = urlMatch[0];
-          await saveRuntimeMemory(memory);
-        }
+        memory.lastContextUrl = urlMatch[0];
+        await saveRuntimeMemory(memory);
 
         await sendTelegramMessage(targetChatId, "🔍 جاري تحليل المستودع والتدقيق الأمني... 🛡️");
         const extractedData = await parseAndFetchGitHubUrl(userText);
