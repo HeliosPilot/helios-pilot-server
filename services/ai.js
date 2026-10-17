@@ -11,7 +11,7 @@ async function callGroqModel(systemInstruction, userPrompt) {
       { role: "system", content: systemInstruction },
       { role: "user", content: userPrompt }
     ],
-    model: "llama-3.3-70b-versatile",
+    model: "llama-3.1-8b-instant",
     temperature: 0.2,
     max_completion_tokens: 1024,
     top_p: 0.95,
@@ -30,7 +30,7 @@ async function callOpenRouterModel(systemInstruction, userPrompt) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: "google/gemini-2.0-flash-001",
+      model: "google/gemini-flash-1.5",
       messages: [
         { role: "system", content: systemInstruction },
         { role: "user", content: userPrompt }
