@@ -372,33 +372,22 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true });
     }
 
-      // إضافة دعم لحدث push لتفعيل المحلل الذاتي ونظام المناعة
-      if (event === "push") {
-        const repo = ghPayload.repository?.name;
-        const owner = ghPayload.repository?.owner?.login;
-        const branch = ghPayload.ref?.replace("refs/heads/", "");
+      // حلقة المراجعة الأمنية التلقائية عند فتح أو تحديث PR
+      if (event === "pull_request" && (ghPayload.action === "opened" || ghPayload.action === "synchronized")) {
+        const prNumber = ghPayload.pull_request.number;
+        const owner = ghPayload.repository.owner.login;
+        const repo = ghPayload.repository.name;
         
-        if (branch === "main" || branch === "master") {
-          await sendTelegramMessage(envChatId, `🛡️ **HeliosPilot Immunity Engine:** فحص أمني استباقي للمستودع \`${repo}\`...`);
-          
-          // 1. فحص استباقي للمفاتيح المكشوفة والدوال الخطيرة
-          const files = ghPayload.commits?.flatMap(c => [...c.added, ...c.modified]) || [];
-          const octokit = await getInstallationOctokitForRepo(owner, repo);
-          
-          for (const filePath of files) {
-            const { data: fileData } = await octokit.repos.getContent({ owner, repo, path: filePath });
-            const content = Buffer.from(fileData.content, 'base64').toString('utf-8');
-            
-            // اكتشاف مفاتيح API أو دوال خطرة
-            if (content.includes("AI_KEY") || content.includes("SECRET") || content.includes("eval(") || content.includes("exec(")) {
-              await sendTelegramMessage(envChatId, `🚨 **تنبيه أمني فوري في ${filePath}:** تم اكتشاف كود غير آمن أو مفاتيح مكشوفة!`);
-            }
-          }
-          
-          // 2. تحديث الخريطة المعمارية
-          const codebaseContext = await fetchCodebaseContextForRAG(owner, repo);
-          const map = await processSmartAIResponse(`Generate a detailed technical map of this codebase, describing the role of each key file and their relationships:\n${codebaseContext}`, []);
-          await import('../services/github.js').then(m => m.createFileInRepo(owner, repo, "CODEBASE_MAP.md", map, "🤖 Auto-update codebase architectural map"));
+        await sendTelegramMessage(envChatId, `🛡️ **HeliosPilot Security Scanner:** جاري فحص الـ PR #${prNumber} بحثاً عن ثغرات...`);
+        
+        const prFiles = await import('../services/github.js').then(m => m.parseAndFetchGitHubUrl(`${ghPayload.pull_request.html_url}`));
+        const reviewResult = await processSmartAIResponse(`Analyze this PR code for OWASP security vulnerabilities. If you find any, explain them and provide a fix. If clean, reply with "SECURE".\n${prFiles}`, []);
+        
+        if (reviewResult.includes("SECURE")) {
+          await sendTelegramMessage(envChatId, `✅ **الـ PR #${prNumber} آمن تماماً.**`);
+        } else {
+          await sendTelegramMessage(envChatId, `🚨 **ثغرة أمنية مكتشفة في الـ PR #${prNumber}!**\n${reviewResult}`);
+          await import('../services/github.js').then(m => postHumanFriendlyComment(owner, repo, prNumber, `🚨 **HeliosPilot Security Alert:**\n${reviewResult}`));
         }
         return res.status(200).json({ success: true });
       }
