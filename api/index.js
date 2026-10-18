@@ -60,6 +60,33 @@ async function postHumanFriendlyComment(owner, repo, prNumber, summary) {
   }
 }
 
+// إرسال تنبيه إلى قنوات متعددة (Telegram + Slack)
+async function sendUnifiedNotification(message, inline_keyboard = null) {
+  // Telegram
+  if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
+    await sendTelegramMessage(process.env.TELEGRAM_CHAT_ID, message, inline_keyboard);
+  }
+  // Slack
+  if (process.env.SLACK_WEBHOOK_URL) {
+    await fetch(process.env.SLACK_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: message })
+    });
+  }
+}
+
+// دالة تحليل تكلفة CI/CD
+async function analyzeCiCost(repo, durationInMs) {
+  const costPerHour = 0.008; // سعر تقريبي لدقيقة Actions
+  const durationInMin = durationInMs / 60000;
+  const cost = durationInMin * costPerHour;
+  if (cost > 0.5) { // تنبيه إذا تجاوزت التكلفة 0.5 دولار
+    await sendUnifiedNotification(`💸 **تنبيه تكلفة CI/CD:** العملية في ${repo} كلفت ${cost.toFixed(4)}$، وهي أعلى من المعتاد!`);
+  }
+  return cost;
+}
+
 async function saveToErrorKB(errorMessage, solution, repo) {
   const kb = await kv.get("global_error_kb") || {};
   if (!kb[errorMessage]) kb[errorMessage] = [];
