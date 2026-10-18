@@ -141,10 +141,22 @@ export default async function handler(req, res) {
   if (req.method === "GET" && req.query.cron === "true") {
     if (envChatId) {
       const repos = await fetchAppInstallationsAndRepos();
+      let alertMsg = "";
+      for (const repoFullName of repos) {
+        const [owner, repo] = repoFullName.split("/");
+        const octokit = await getInstallationOctokitForRepo(owner, repo);
+        if (octokit) {
+          const { data: alerts } = await octokit.dependabot.listAlertsForRepo({ owner, repo, state: "open" });
+          if (alerts.length > 0) {
+            alertMsg += `⚠️ *تنبيه في ${repoFullName}:* اكتشاف ${alerts.length} تبعية ضعيفة (Dependabot).\n`;
+          }
+        }
+      }
+      
       const digest = `🛡️ **HELIOS-NET Security & Actions Monitoring (HeliosPilot):**\n\n` +
-        `• **حالة الحراسة والـ Actions:** نشطة وتراقب خطوط البناء والاختبارات ⚡\n` +
-        `• **المستودعات المحمية:**\n${repos.map(r => `  - ${r}`).join("\n")}\n\n` +
-        `_النظام يعمل بأمان ومحمي بـ Vercel KV & Sentry._ 🚀`;
+        `• **الحالة:** نشطة ⚡\n` +
+        (alertMsg ? `\n${alertMsg}\n` : "✅ لا توجد تنبيهات أمنية جديدة.\n") +
+        `_النظام يعمل بأمان._ 🚀`;
       await sendTelegramMessage(envChatId, digest);
     }
     return res.status(200).json({ status: "Security actions briefing dispatched successfully" });
