@@ -322,6 +322,15 @@ export default async function handler(req, res) {
         const result = await import('../services/github.js').then(m => m.createAutomatedPR(owner, repo, taskType, fix, filePath));
         
         await sendTelegramMessage(queryChatId, `3. تمت المهمة بنجاح! 🎉\n\n${result}`);
+      } else if (data.startsWith("mergepr:")) {
+        const [_, owner, repo, prNumber] = data.split(":");
+        await answerTelegramCallback(callbackQuery.id, "⚡ جاري دمج الـ PR...");
+        
+        const octokit = await getInstallationOctokitForRepo(owner, repo);
+        if (octokit) {
+            await octokit.pulls.merge({ owner, repo, pull_number: prNumber });
+            await sendTelegramMessage(queryChatId, `✅ **تم دمج الـ PR #${prNumber} بنجاح!** 🎉`);
+        }
       } else if (data.startsWith("viewpr:")) {
         const runUrl = data.replace("viewpr:", "");
         await answerTelegramCallback(callbackQuery.id, "🔍 جاري جلب تفاصيل الـ PR...");
