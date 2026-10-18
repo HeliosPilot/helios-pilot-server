@@ -67,6 +67,8 @@
 | `/clear` | إعادة تهيئة السياق والمسح | Reset context and memory | اكتب `/clear` | 🧹 تم إعادة تهيئة السياق الهندسي بنجاح. ⚡ |
 | `/metrics` | مقاييس جودة الكود (جديد) | Code quality metrics (new) | اكتب `/metrics` | 📊 *مقاييس HELIOS-NET المخضرم:*\n\n⚠️ **Complexity:** 45 (الحد: 20)\n📈 **Coverage:** 78% (الحد: 80%)\n🔁 **Duplication:** 12% (الحد: <10%)\n📝 **Technical Debt:** 15 ساعة\n🟢 **Functions صحية:** 67🔴 **Functions needing review:** 23 |
 | `/weekly` | التقرير الأسبوعي (جديد) | Weekly report (new) | اكتب `/weekly` | 📊 *ملخص أسبوعي HELIOS-NET* ⚡\n\n`- **المالك:** \`Ismail-Benali\`\n`- **المشروع:** HELIOS-NET\n`- **المستودعات المحمية:** 1 مستودع\n`- **اتجاه التعقيد:** ↗️ زيادة ( +5 هذا الأسبوع )\n`- **اتجاه التغطية:** ↘️ انخفاض ( -2% هذا الأسبوع )\n`- **تنبيهات أمنية:** 0 نتائج جديدة\n`- **المطورون النشطون:** 3\n`- **التبعيات:** 42총 (2 قديمة)` |
+| `/createwiki` | توليد وتوثيق WIKI.md (جديد) | Generate and document WIKI.md (new) | اكتب `/createwiki` | 📝 **HeliosPilot Wiki Engine:** يقوم باستخراج سياق المشروع وتوليد صفحة `WIKI.md` احترافية وفتح Pull Request بها تلقائياً. |
+| `/autofix` | فحص وترقيع الثغرات (جديد) | Scan and patch security vulnerabilities (new) | اكتب `/autofix` | 🛠️ **HeliosPilot Auto-Patch Engine:** يقوم بفحص الـ Code Scanning Alerts في GitHub، توليد ترقيع أمني، وفتح Pull Request تلقائي بالحل. |
 | `/gif` *(Deprecated)* | اختبار إرسال صور GIF (ملغى) | Test GIF sending (deprecated) | اكتب `/gif` | ⚠️ تم إلغاء 명령 GIF، استخدم الصور العادية. |
 
 **ملاحظة:** أوامر `/metrics` و `/weekly` تتطلب تفعيل خصائص جودة الكود في إعدادات GitHub App والمستودع.
