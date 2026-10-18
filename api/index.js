@@ -60,6 +60,28 @@ async function postHumanFriendlyComment(owner, repo, prNumber, summary) {
   }
 }
 
+// نظام فهرست ذكي (Vector-like index) للبحث في الكود
+async function indexCodebase(owner, repo, files) {
+  const index = {};
+  for (const path of files) {
+    const octokit = await getInstallationOctokitForRepo(owner, repo);
+    const { data: file } = await octokit.repos.getContent({ owner, repo, path });
+    const content = Buffer.from(file.content, 'base64').toString('utf8');
+    
+    // استخراج كلمات مفتاحية (بسيطة جداً)
+    const keywords = content.toLowerCase().split(/\W+/).filter(w => w.length > 5);
+    index[path] = [...new Set(keywords)];
+  }
+  await kv.set(`code_index_${owner}_${repo}`, index);
+}
+
+// بحث سريع في الفهرس
+async function searchCodebase(owner, repo, query) {
+  const index = await kv.get(`code_index_${owner}_${repo}`) || {};
+  const q = query.toLowerCase();
+  return Object.keys(index).filter(path => index[path].includes(q));
+}
+
 // تجميع التنبيهات في KV بدلاً من الإرسال الفوري
 async function queueNotification(chatId, message) {
   const queue = await kv.get(`notification_queue_${chatId}`) || [];
