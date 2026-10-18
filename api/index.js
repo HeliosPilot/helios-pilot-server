@@ -499,12 +499,18 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true });
       }
 
-      if (cleanCmd.startsWith("/setrepo ")) {
-        const repo = cleanCmd.replace("/setrepo ", "").trim();
-        const memory = await getRuntimeMemory();
-        memory.userActiveRepos[targetChatId] = repo;
-        await saveRuntimeMemory(memory);
-        await sendTelegramMessage(targetChatId, `✅ تم تعيين المستودع النشط إلى: \`${repo}\``);
+      if (cleanCmd.startsWith("/ask ")) {
+        const query = cleanCmd.replace("/ask ", "").trim();
+        await sendTelegramMessage(targetChatId, `🔍 *HeliosPilot RAG Engine:* جارٍ البحث في سياق ${memory.userActiveRepos[targetChatId] || "المشروع"}...`);
+        
+        const activeRepo = memory.userActiveRepos[targetChatId] || "Ismail-Benali/HELIOS-NET";
+        const [owner, repo] = activeRepo.split("/");
+        
+        // جلب سياق ذكي (ملفات README + الكود الأساسي)
+        const context = await fetchCodebaseContextForRAG(owner, repo);
+        const answer = await processSmartAIResponse(`Answer the following question based on the codebase context provided:\nQuestion: ${query}\nContext: ${context}`, memory.dynamicMemory);
+        
+        await sendTelegramMessage(targetChatId, `🤖 *HeliosPilot Answer:*\n\n${answer}`);
         return res.status(200).json({ success: true });
       }
 
