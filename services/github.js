@@ -92,6 +92,90 @@ export async function addCommentToIssueOrPR(url, commentBody) {
   }
 }
 
+export async function createAutomatedPR(owner, repo, taskType, fixContent, filePath) {
+  try {
+    const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
+    if (!repoOctokit) throw new Error("لا توجد صلاحيات للمستودع.");
+
+    const { data: ref } = await repoOctokit.git.getRef({ owner, repo, ref: "heads/master" }).catch(() => repoOctokit.git.getRef({ owner, repo, ref: "heads/main" }));
+    const sha = ref.object.sha;
+
+    const newBranch = `helios-pilot/${taskType}-${Date.now()}`;
+    await repoOctokit.git.createRef({
+      owner,
+      repo,
+      ref: `refs/heads/${newBranch}`,
+      sha: sha
+    });
+
+    const { data: file } = await repoOctokit.repos.getContent({ owner, repo, path: filePath });
+    await repoOctokit.repos.createOrUpdateFileContents({
+      owner,
+      repo,
+      path: filePath,
+      message: `🛠️ ${taskType}: Automated fix by HeliosPilot`,
+      content: Buffer.from(fixContent).toString('base64'),
+      sha: file.sha,
+      branch: newBranch
+    });
+
+    const { data: pr } = await repoOctokit.pulls.create({
+      owner,
+      repo,
+      title: `🛠️ ${taskType}: Automated Fix`,
+      body: `⚡ **HeliosPilot AI Agent** generated an automated fix for: ${taskType}.\n\n**Analysis:** The bot analyzed the codebase and applied the following patch.`,
+      head: newBranch,
+      base: ref.ref.replace("refs/heads/", "")
+    });
+
+    return `✅ **تم إنشاء PR بنجاح:** ${pr.html_url}`;
+  } catch (error) {
+    console.error("Error creating Auto-Patch PR:", error);
+    throw error;
+  }
+}
+
+export async function createFileInRepo(owner, repo, filePath, fileContent, commitMessage) {
+  try {
+    const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
+    if (!repoOctokit) throw new Error("لا توجد صلاحيات للمستودع.");
+
+    const { data: ref } = await repoOctokit.git.getRef({ owner, repo, ref: "heads/master" }).catch(() => repoOctokit.git.getRef({ owner, repo, ref: "heads/main" }));
+    const sha = ref.object.sha;
+
+    const newBranch = `helios-pilot/create-${filePath.replace(/\//g, '-')}-${Date.now()}`;
+    await repoOctokit.git.createRef({
+      owner,
+      repo,
+      ref: `refs/heads/${newBranch}`,
+      sha: sha
+    });
+
+    await repoOctokit.repos.createOrUpdateFileContents({
+      owner,
+      repo,
+      path: filePath,
+      message: commitMessage,
+      content: Buffer.from(fileContent).toString('base64'),
+      branch: newBranch
+    });
+
+    const { data: pr } = await repoOctokit.pulls.create({
+      owner,
+      repo,
+      title: `📝 ${commitMessage}`,
+      body: `⚡ **HeliosPilot AI Agent** created this file automatically.`,
+      head: newBranch,
+      base: ref.ref.replace("refs/heads/", "")
+    });
+
+    return `✅ **تم إنشاء الملف بنجاح وفتح PR:** ${pr.html_url}`;
+  } catch (error) {
+    console.error("Error creating file in repo:", error);
+    throw error;
+  }
+}
+
 export async function parseAndFetchGitHubUrl(url) {
   try {
     const issueMatch = url.match(/github\.com\/([^\/]+)\/([^\/]+)\/issues\/(\d+)/);

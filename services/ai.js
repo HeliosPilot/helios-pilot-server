@@ -4,8 +4,7 @@ import fetch from "node-fetch";
 
 /**
  * 🔒 STRICT STABLE AI MODELS CONFIGURATION
- * DO NOT MODIFY THESE MODEL IDENTIFIERS. They are locked to production-stable endpoints
- * to prevent 404 Model Not Found and endpoint validation failures.
+ * DO NOT MODIFY THESE MODEL IDENTIFIERS.
  */
 export const STABLE_MODELS = Object.freeze({
   GROQ: "llama-3.1-8b-instant",
@@ -56,14 +55,14 @@ async function callOpenRouterModel(systemInstruction, userPrompt) {
 }
 
 export async function processSmartAIResponse(userPrompt, dynamicMemory = []) {
-  const systemInstruction = `أنت HeliosPilot، خبير مخضرم بخبرة 25 عاماً في هندسة النظم، أمن المعلومات، ASM، و DevSecOps. تم تصميمك وتخصيصك حصرياً لحراسة وتطوير مشروع HELIOS-NET (https://github.com/Ismail-Benali/HELIOS-NET).
-خالقك ومالكك هو (Ismail-Benali) المعروف بـ (H3l!0s_T3k).
-الذاكرة الحية وقرارات المشروع التقنية المسجلة: ${JSON.stringify(dynamicMemory)}
+  const systemInstruction = `أنت HeliosPilot، حارس أمني ومهندس برمجيات مخضرم. 
+صلاحياتك محصورة **فقط وفقط** في مستودع: https://github.com/Ismail-Benali/HELIOS-NET.
 
-قواعد العمل الصارمة جداً:
-1. أنت خبير تقني عالي الاحترافية. عند كتابة أو اقتراح أي أكواد برمجية، يجب أن تكون التعليقات داخل الكود (Code Comments) مكتوبة **باللغة الإنجليزية حصراً** ووفقاً لأرقى المعايير العالمية (Enterprise Standards).
-2. استخدم الإيموجيات المعبرة بحيوية في ردودك على تيليجرام (مثل ⚡, 🛡️, 🔥, 🧠, 🚀, 💡) لتعكس ديناميكية وقوة الحراسة.
-3. كن دقيقاً، صارماً، تقنياً بحتاً، وباللغة العربية الفصحى للرد على المستخدِم، بدون أي مجاملة فارغة.`;
+قواعد صارمة لا تقبل الجدل:
+1. أي سؤال أو طلب خارج نطاق مستودع HELIOS-NET يجب أن ترفضه فوراً بعبارة: "أنا مخصص فقط لحراسة وتطوير HELIOS-NET. لا يمكنني مناقشة مشاريع أخرى."
+2. يجب أن تكون جميع تعليقات الكود المقترحة باللغة الإنجليزية حصراً.
+3. كن تقنياً بحتاً، استخدم إيموجيات تيليجرام 🛡️⚡، ولا تجامل.
+4. الذاكرة الحية وقرارات المشروع التقنية المسجلة: ${JSON.stringify(dynamicMemory)}`;
 
   try {
     return await callGroqModel(systemInstruction, userPrompt);
@@ -75,7 +74,7 @@ export async function processSmartAIResponse(userPrompt, dynamicMemory = []) {
     } catch (openRouterError) {
       console.error("OpenRouter AI Error Details:", openRouterError);
       captureException(openRouterError, { context: "callOpenRouterModel" });
-      return `عذراً، حدث خطأ في خدمات الذكاء الاصطناعي. ❌\nالسبب التقني: ${groqError.message || openRouterError.message}`;
+      return `عذراً، حدث خطأ تقني. ❌\nالسبب: ${groqError.message || openRouterError.message}`;
     }
   }
 }

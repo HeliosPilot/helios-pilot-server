@@ -13,5 +13,9 @@
   },
   "engines": {
     "node": ">=18.x"
+  },
+  "scripts": {
+    "check": "node --check api/index.js services/ai.js services/github.js",
+    "test": "node --test tests/**/*.js"
   }
 }
