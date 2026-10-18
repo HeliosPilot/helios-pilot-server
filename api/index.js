@@ -256,18 +256,22 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true });
     }
 
-    // 2. التعامل مع أحداث GitHub Webhooks
-    if (req.headers["x-github-event"]) {
-      if (!verifyGitHubSignature(req)) {
-        return res.status(401).json({ error: "Invalid GitHub Webhook Signature" });
+      // إضافة دعم لحدث push لتفعيل المحلل الذاتي
+      if (event === "push") {
+        const repo = ghPayload.repository?.name;
+        const owner = ghPayload.repository?.owner?.login;
+        const branch = ghPayload.ref?.replace("refs/heads/", "");
+        
+        if (branch === "main" || branch === "master") {
+          await sendTelegramMessage(envChatId, `🔄 **HeliosPilot:** تم اكتشاف تغييرات في \`${repo}\`. جاري التحليل الذاتي وتحديث خريطة الكود...`);
+          
+          const codebaseContext = await fetchCodebaseContextForRAG(owner, repo);
+          const map = await processSmartAIResponse(`Generate a detailed technical map of this codebase, describing the role of each key file and their relationships:\n${codebaseContext}`, []);
+          
+          await import('../services/github.js').then(m => m.createFileInRepo(owner, repo, "CODEBASE_MAP.md", map, "🤖 Auto-update codebase architectural map"));
+        }
+        return res.status(200).json({ success: true });
       }
-
-      const event = req.headers["x-github-event"];
-      const ghPayload = req.body;
-      const memory = await getRuntimeMemory();
-      const targetNotifyChatId = envChatId;
-
-      if (event === "workflow_run" && ghPayload.action === "completed") {
         const workflowName = ghPayload.workflow_run?.name || "Workflow";
         const conclusion = ghPayload.workflow_run?.conclusion;
         const runUrl = ghPayload.workflow_run?.html_url;
