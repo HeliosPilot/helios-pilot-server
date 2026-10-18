@@ -13,7 +13,8 @@ const DEFAULT_MEMORY = {
   coreStack: "Node.js, Vercel Serverless, Groq, OpenRouter, GitHub App, Telegram API, Vercel KV, Sentry",
   rules: "أنت خبير مخضرم بخبرة 25 عاماً في هندسة النظم، أمن المعلومات، ASM، و DevSecOps. صُممت لحراسة وتطوير HELIOS-NET.",
   targetProject: "https://github.com/Ismail-Benali/HELIOS-NET",
-  dynamicMemory: []
+  dynamicMemory: [],
+  userActiveRepos: {} // { chatId: "owner/repo" }
 };
 
 async function getRuntimeMemory() {
@@ -486,9 +487,12 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true });
       }
 
-      if (cleanCmd === "/weekly") {
-        const weeklySummary = await generateWeeklySummary();
-        await sendTelegramMessage(targetChatId, weeklySummary);
+      if (cleanCmd.startsWith("/setrepo ")) {
+        const repo = cleanCmd.replace("/setrepo ", "").trim();
+        const memory = await getRuntimeMemory();
+        memory.userActiveRepos[targetChatId] = repo;
+        await saveRuntimeMemory(memory);
+        await sendTelegramMessage(targetChatId, `✅ تم تعيين المستودع النشط إلى: \`${repo}\``);
         return res.status(200).json({ success: true });
       }
 
