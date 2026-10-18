@@ -499,18 +499,26 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true });
       }
 
-      if (cleanCmd.startsWith("/ask ")) {
-        const query = cleanCmd.replace("/ask ", "").trim();
-        await sendTelegramMessage(targetChatId, `🔍 *HeliosPilot RAG Engine:* جارٍ البحث في سياق ${memory.userActiveRepos[targetChatId] || "المشروع"}...`);
-        
+      if (cleanCmd.startsWith("/analyze-perf")) {
         const activeRepo = memory.userActiveRepos[targetChatId] || "Ismail-Benali/HELIOS-NET";
+        await sendTelegramMessage(targetChatId, `🚀 *HeliosPilot Performance Analyzer:* جارٍ تحليل الكود في \`${activeRepo}\`...`);
+        
         const [owner, repo] = activeRepo.split("/");
-        
-        // جلب سياق ذكي (ملفات README + الكود الأساسي)
         const context = await fetchCodebaseContextForRAG(owner, repo);
-        const answer = await processSmartAIResponse(`Answer the following question based on the codebase context provided:\nQuestion: ${query}\nContext: ${context}`, memory.dynamicMemory);
+        const analysis = await processSmartAIResponse(`Analyze this codebase for performance bottlenecks, time complexity, and inefficient operations. Provide concise optimization suggestions:\n${context}`, memory.dynamicMemory);
         
-        await sendTelegramMessage(targetChatId, `🤖 *HeliosPilot Answer:*\n\n${answer}`);
+        await sendTelegramMessage(targetChatId, `⚡ *HeliosPilot Analysis:*\n\n${analysis}`);
+        return res.status(200).json({ success: true });
+      }
+
+      if (cleanCmd.startsWith("/review ")) {
+        const prUrl = cleanCmd.replace("/review ", "").trim();
+        await sendTelegramMessage(targetChatId, "🛡️ **HeliosPilot Security Audit:** جاري فحص الـ PR...");
+        
+        const prContent = await parseAndFetchGitHubUrl(prUrl);
+        const review = await processSmartAIResponse(`Perform an elite 25-yr veteran DevSecOps security & quality code review for this PR:\n${prContent}`, memory.dynamicMemory);
+        
+        await sendTelegramMessage(targetChatId, `🛡️ *تقرير التدقيق الأمني:*\n\n${review}`);
         return res.status(200).json({ success: true });
       }
 
