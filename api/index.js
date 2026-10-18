@@ -60,20 +60,21 @@ async function postHumanFriendlyComment(owner, repo, prNumber, summary) {
   }
 }
 
-// إرسال تنبيه إلى قنوات متعددة (Telegram + Slack)
-async function sendUnifiedNotification(message, inline_keyboard = null) {
-  // Telegram
-  if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
-    await sendTelegramMessage(process.env.TELEGRAM_CHAT_ID, message, inline_keyboard);
-  }
-  // Slack
-  if (process.env.SLACK_WEBHOOK_URL) {
-    await fetch(process.env.SLACK_WEBHOOK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: message })
-    });
-  }
+// تجميع التنبيهات في KV بدلاً من الإرسال الفوري
+async function queueNotification(chatId, message) {
+  const queue = await kv.get(`notification_queue_${chatId}`) || [];
+  queue.push({ message, timestamp: Date.now() });
+  await kv.set(`notification_queue_${chatId}`, queue);
+}
+
+// دالة جديدة لتسليم التنبيهات المجمعة
+async function flushNotifications(chatId) {
+  const queue = await kv.get(`notification_queue_${chatId}`) || [];
+  if (queue.length === 0) return;
+  
+  const summary = `🔔 **ملخص تنبيهات HeliosPilot (الساعة الماضية):**\n\n` + queue.map(q => `• ${q.message}`).join("\n\n");
+  await sendTelegramMessage(chatId, summary);
+  await kv.del(`notification_queue_${chatId}`);
 }
 
 // دالة تحليل تكلفة CI/CD
@@ -221,6 +222,9 @@ export default async function handler(req, res) {
 
   if (req.method === "GET" && req.query.cron === "true") {
     if (envChatId) {
+      // تسليم التنبيهات المجمعة أولاً
+      await flushNotifications(envChatId);
+
       const repos = await fetchAppInstallationsAndRepos();
       let alertMsg = "";
       for (const repoFullName of repos) {
