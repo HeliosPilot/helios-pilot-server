@@ -69,6 +69,7 @@
 | `/weekly` | التقرير الأسبوعي (جديد) | Weekly report (new) | اكتب `/weekly` | 📊 *ملخص أسبوعي HELIOS-NET* ⚡\n\n`- **المالك:** \`Ismail-Benali\`\n`- **المشروع:** HELIOS-NET\n`- **المستودعات المحمية:** 1 مستودع\n`- **اتجاه التعقيد:** ↗️ زيادة ( +5 هذا الأسبوع )\n`- **اتجاه التغطية:** ↘️ انخفاض ( -2% هذا الأسبوع )\n`- **تنبيهات أمنية:** 0 نتائج جديدة\n`- **المطورون النشطون:** 3\n`- **التبعيات:** 42총 (2 قديمة)` |
 | `/createwiki` | توليد وتوثيق WIKI.md (جديد) | Generate and document WIKI.md (new) | اكتب `/createwiki` | 📝 **HeliosPilot Wiki Engine:** يقوم باستخراج سياق المشروع، اقتراح هيكلة الملفات، وتوليد `WIKI.md` أو إنشاء مجلدات/ملفات التوثيق في GitHub وفتح Pull Request بها تلقائياً. |
 | `/autofix` | فحص وترقيع الثغرات (جديد) | Scan and patch security vulnerabilities (new) | اكتب `/autofix` | 🛠️ **HeliosPilot Auto-Patch Engine:** يقوم بفحص الـ Code Scanning Alerts في GitHub، توليد ترقيع أمني، وفتح Pull Request تلقائي بالحل. |
+| `المستودعات` | عرض المستودعات المتاحة | List available repositories | اكتب `المستودعات` | 📂 عرض قائمة المستودعات التي يراها البوت، مما يتيح لك اختيار المستودع المستهدف لأي إجراء أو تعديلات لاحقة. |
 | `/gif` *(Deprecated)* | اختبار إرسال صور GIF (ملغى) | Test GIF sending (deprecated) | اكتب `/gif` | ⚠️ تم إلغاء 명령 GIF، استخدم الصور العادية. |
 
 **ملاحظة:** أوامر `/metrics` و `/weekly` تتطلب تفعيل خصائص جودة الكود في إعدادات GitHub App والمستودع.
