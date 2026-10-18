@@ -256,18 +256,32 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true });
     }
 
-      // إضافة دعم لحدث push لتفعيل المحلل الذاتي
+      // إضافة دعم لحدث push لتفعيل المحلل الذاتي ونظام المناعة
       if (event === "push") {
         const repo = ghPayload.repository?.name;
         const owner = ghPayload.repository?.owner?.login;
         const branch = ghPayload.ref?.replace("refs/heads/", "");
         
         if (branch === "main" || branch === "master") {
-          await sendTelegramMessage(envChatId, `🔄 **HeliosPilot:** تم اكتشاف تغييرات في \`${repo}\`. جاري التحليل الذاتي وتحديث خريطة الكود...`);
+          await sendTelegramMessage(envChatId, `🛡️ **HeliosPilot Immunity Engine:** فحص أمني استباقي للمستودع \`${repo}\`...`);
           
+          // 1. فحص استباقي للمفاتيح المكشوفة والدوال الخطيرة
+          const files = ghPayload.commits?.flatMap(c => [...c.added, ...c.modified]) || [];
+          const octokit = await getInstallationOctokitForRepo(owner, repo);
+          
+          for (const filePath of files) {
+            const { data: fileData } = await octokit.repos.getContent({ owner, repo, path: filePath });
+            const content = Buffer.from(fileData.content, 'base64').toString('utf-8');
+            
+            // اكتشاف مفاتيح API أو دوال خطرة
+            if (content.includes("AI_KEY") || content.includes("SECRET") || content.includes("eval(") || content.includes("exec(")) {
+              await sendTelegramMessage(envChatId, `🚨 **تنبيه أمني فوري في ${filePath}:** تم اكتشاف كود غير آمن أو مفاتيح مكشوفة!`);
+            }
+          }
+          
+          // 2. تحديث الخريطة المعمارية
           const codebaseContext = await fetchCodebaseContextForRAG(owner, repo);
           const map = await processSmartAIResponse(`Generate a detailed technical map of this codebase, describing the role of each key file and their relationships:\n${codebaseContext}`, []);
-          
           await import('../services/github.js').then(m => m.createFileInRepo(owner, repo, "CODEBASE_MAP.md", map, "🤖 Auto-update codebase architectural map"));
         }
         return res.status(200).json({ success: true });
