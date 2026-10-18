@@ -27,14 +27,6 @@ async function getRuntimeMemory() {
   }
 }
 
-async function saveToErrorKB(errorMessage, solution, repo) {
-  const kb = await kv.get("global_error_kb") || {};
-  if (!kb[errorMessage]) kb[errorMessage] = [];
-  // إضافة الحل وتوثيق المصدر (المستودع)
-  kb[errorMessage].push({ solution, repo, timestamp: Date.now() });
-  await kv.set("global_error_kb", kb);
-}
-
 // دالة لفتح بطاقة Trello عند فشل العملية
 async function createTrelloCard(title, description) {
   const apiKey = process.env.TRELLO_API_KEY;
@@ -45,6 +37,56 @@ async function createTrelloCard(title, description) {
 
   const url = `https://api.trello.com/1/cards?key=${apiKey}&token=${apiToken}&idList=${listId}&name=${encodeURIComponent(title)}&desc=${encodeURIComponent(description)}`;
   await fetch(url, { method: "POST" });
+}
+
+// دالة لتوليد شرح إنساني بسيط للـ PR
+async function generateHumanFriendlySummary(prContent) {
+  return await processSmartAIResponse(
+    `Explain this code change as if you are a senior lead engineer talking to a junior developer. Be friendly, concise, and explain "why" this change was made:\n${prContent}`,
+    []
+  );
+}
+
+// دالة لنشر الشرح كتعليق على الـ PR
+async function postHumanFriendlyComment(owner, repo, prNumber, summary) {
+  const octokit = await getInstallationOctokitForRepo(owner, repo);
+  if (octokit) {
+    await octokit.issues.createComment({
+      owner,
+      repo,
+      issue_number: prNumber,
+      body: `🗣️ **HeliosPilot Insight:**\n\n${summary}`
+    });
+  }
+}
+
+async function saveToErrorKB(errorMessage, solution, repo) {
+  const kb = await kv.get("global_error_kb") || {};
+  if (!kb[errorMessage]) kb[errorMessage] = [];
+  // إضافة الحل وتوثيق المصدر (المستودع)
+  kb[errorMessage].push({ solution, repo, timestamp: Date.now() });
+  await kv.set("global_error_kb", kb);
+}
+
+// دالة لتوليد شرح إنساني بسيط للـ PR
+async function generateHumanFriendlySummary(prContent) {
+  return await processSmartAIResponse(
+    `Explain this code change as if you are a senior lead engineer talking to a junior developer. Be friendly, concise, and explain "why" this change was made:\n${prContent}`,
+    []
+  );
+}
+
+// دالة لنشر الشرح كتعليق على الـ PR
+async function postHumanFriendlyComment(owner, repo, prNumber, summary) {
+  const octokit = await getInstallationOctokitForRepo(owner, repo);
+  if (octokit) {
+    await octokit.issues.createComment({
+      owner,
+      repo,
+      issue_number: prNumber,
+      body: `🗣️ **HeliosPilot Insight:**\n\n${summary}`
+    });
+  }
 }
 
 async function generateWeeklySummary() {
