@@ -276,39 +276,27 @@ export default async function handler(req, res) {
         const repo = ghPayload.repository?.name;
 
         if (conclusion === "failure") {
-          if (targetNotifyChatId) {
-            await sendTelegramMessage(targetNotifyChatId, `❌ **فشل في خط البناء Actions (HELIOS-NET)!** 🔥\n\n` +
-              `• **العملية:** ${workflowName}\n` +
-              `• **المستودع:** ${repoName}\n` +
-              `• **الحالة:** FAILED 🔴\n` +
-              `• **الرابط المباشر:** ${runUrl}`, {
-                inline_keyboard: [[{ text: "🛠️ طلب تصحيح آلي (Auto-Patch)", callback_data: `autofix:${runUrl}` }]]
+          await sendTelegramMessage(targetNotifyChatId, `❌ **فشل في خط البناء Actions (${repoName})!** 🔥\nجاري محاولة التصحيح الذاتي...`);
+          
+          try {
+            const parsedPr = await parseAndFetchGitHubUrl(runUrl);
+            const autoFix = await processSmartAIResponse(`Generate a precise automated code fix for this CI/CD failure:\n${parsedPr}`, memory.dynamicMemory);
+
+            const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
+            if (repoOctokit) {
+              const pr = await repoOctokit.pulls.create({
+                owner,
+                repo,
+                title: `🛠️ Auto-Patch: ${workflowName} Fix`,
+                body: `⚡ **HeliosPilot Self-Healing:** Automatic fix generated for workflow failure.\n\n**Analysis:** ${autoFix}`,
+                head: `helios-pilot/self-heal-${Date.now()}`,
+                base: "main"
               });
-          }
-
-          if (owner && repo) {
-            try {
-              const parsedPr = await parseAndFetchGitHubUrl(runUrl);
-              const autoFix = await processSmartAIResponse(`Generate an elite English auto-fix for this CI/CD failure in HELIOS-NET:\n${parsedPr}`, memory.dynamicMemory);
-
-              const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
-              if (repoOctokit) {
-                await repoOctokit.pulls.create({
-                  owner,
-                  repo,
-                  title: `🛠️ Auto-Patch: ${workflowName} Fix`,
-                  body: `⚡ **HeliosPilot Auto-Patch Engine** detected a build failure and generated automated patch analysis.\n\n**Failing Workflow:** ${workflowName}\n**Analysis & Solution:**\n${autoFix}`,
-                  head: `helios-pilot/auto-patch-${Date.now()}`,
-                  base: "main"
-                });
-
-                if (targetNotifyChatId) {
-                  await sendTelegramMessage(targetNotifyChatId, `✅ **Auto-Patch PR تم إنشاؤه بنجاح!** ⚡\n• **المستودع:** \`${owner}/${repo}\`\n• **عنوان الـ PR:** Auto-Patch: ${workflowName} Fix`);
-                }
-              }
-            } catch (err) {
-              captureException(err, { context: "autoPatchWorkflow" });
+              await sendTelegramMessage(targetNotifyChatId, `✅ **Self-Healing PR تم إنشاؤه بنجاح:** ${pr.data.html_url}`);
             }
+          } catch (err) {
+            captureException(err, { context: "selfHealing" });
+            await sendTelegramMessage(targetNotifyChatId, `⚠️ **فشل التصحيح الذاتي:** ${err.message}`);
           }
         } else if (conclusion === "success" && targetNotifyChatId) {
           await sendTelegramMessage(targetNotifyChatId, `✅ **نجاح خط البناء Actions في ${repoName}!** ⚡\n\n` +
