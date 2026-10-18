@@ -497,32 +497,36 @@ export default async function handler(req, res) {
       }
 
       if (cleanCmd === "/createwiki") {
-        await sendTelegramMessage(targetChatId, "📝 **HeliosPilot Wiki Engine** جاري العمل...\nجاري استخراج سياق المستودع وتوليد صفحة الويكي وفتح PR بها...");
+        await sendTelegramMessage(targetChatId, "📝 **HeliosPilot Wiki Engine** جاري العمل...");
         const memory = await getRuntimeMemory();
-        const codebaseContext = await fetchCodebaseContextForRAG();
-        const wikiContent = await processSmartAIResponse(`Generate a comprehensive WIKI.md page for the project HELIOS-NET based on the following codebase context:\n${codebaseContext}\n\nMake it professional, English, and include all project details.`, memory.dynamicMemory);
+        const activeRepo = memory.userActiveRepos[targetChatId] || "Ismail-Benali/HELIOS-NET";
+        const [owner, repo] = activeRepo.split("/");
         
-        const result = await import('../services/github.js').then(m => m.createFileInRepo("Ismail-Benali", "HELIOS-NET", "WIKI.md", wikiContent, "📝 Create WIKI.md automatically"));
+        const codebaseContext = await fetchCodebaseContextForRAG(owner, repo);
+        const wikiContent = await processSmartAIResponse(`Generate a comprehensive WIKI.md page for ${activeRepo} based on:\n${codebaseContext}`, memory.dynamicMemory);
+        
+        const result = await import('../services/github.js').then(m => m.createFileInRepo(owner, repo, "WIKI.md", wikiContent, "📝 Create WIKI.md automatically"));
         await sendTelegramMessage(targetChatId, result);
         return res.status(200).json({ success: true });
       }
 
-            if (cleanCmd === "/autofix") {
-        await sendTelegramMessage(targetChatId, "🛠️ **HeliosPilot Auto-Patch Engine** بدء التشغيل...\nجاري البحث عن ثغرات أمنية في المستودع...");
+      if (cleanCmd === "/autofix") {
+        await sendTelegramMessage(targetChatId, "🛠️ **HeliosPilot Auto-Patch Engine** بدء التشغيل...");
         const memory = await getRuntimeMemory();
+        const activeRepo = memory.userActiveRepos[targetChatId] || "Ismail-Benali/HELIOS-NET";
+        const [owner, repo] = activeRepo.split("/");
         
-        // جلب الثغرات المفتوحة
         try {
-          const repoOctokit = await import('../services/github.js').then(m => m.getInstallationOctokitForRepo("Ismail-Benali", "HELIOS-NET"));
+          const repoOctokit = await import('../services/github.js').then(m => m.getInstallationOctokitForRepo(owner, repo));
           if (repoOctokit) {
-              const { data: alerts } = await repoOctokit.codeScanning.listAlertsForRepo({ owner: "Ismail-Benali", repo: "HELIOS-NET", state: "open" });
+              const { data: alerts } = await repoOctokit.codeScanning.listAlertsForRepo({ owner, repo, state: "open" });
               if (alerts.length > 0) {
                   const alert = alerts[0];
                   const fix = await processSmartAIResponse(`Generate a security fix for: ${alert.rule.description}. Provide code only.`, memory.dynamicMemory);
-                  const result = await import('../services/github.js').then(m => m.createAutomatedPR("Ismail-Benali", "HELIOS-NET", "security-fix", fix, alert.most_recent_instance.location.path));
+                  const result = await import('../services/github.js').then(m => m.createAutomatedPR(owner, repo, "security-fix", fix, alert.most_recent_instance.location.path));
                   await sendTelegramMessage(targetChatId, result);
               } else {
-                  await sendTelegramMessage(targetChatId, "✅ لا توجد ثغرات مفتوحة تحتاج للترقيع حالياً!");
+                  await sendTelegramMessage(targetChatId, "✅ لا توجد ثغرات مفتوحة في المستودع المحدد!");
               }
           }
         } catch (e) {
