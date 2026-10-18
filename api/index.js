@@ -35,9 +35,16 @@ async function saveToErrorKB(errorMessage, solution, repo) {
   await kv.set("global_error_kb", kb);
 }
 
-async function getSolutionFromKB(errorMessage) {
-  const kb = await kv.get("global_error_kb") || {};
-  return kb[errorMessage] || [];
+// دالة لفتح بطاقة Trello عند فشل العملية
+async function createTrelloCard(title, description) {
+  const apiKey = process.env.TRELLO_API_KEY;
+  const apiToken = process.env.TRELLO_API_TOKEN;
+  const listId = process.env.TRELLO_LIST_ID;
+  
+  if (!apiKey || !apiToken || !listId) return;
+
+  const url = `https://api.trello.com/1/cards?key=${apiKey}&token=${apiToken}&idList=${listId}&name=${encodeURIComponent(title)}&desc=${encodeURIComponent(description)}`;
+  await fetch(url, { method: "POST" });
 }
 
 async function generateWeeklySummary() {
@@ -299,11 +306,14 @@ export default async function handler(req, res) {
         const repo = ghPayload.repository?.name;
 
         if (conclusion === "failure") {
-          await sendTelegramMessage(targetNotifyChatId, `❌ **فشل في خط البناء Actions (${repoName})!** 🔥\nجاري محاولة التصحيح الذاتي...`);
+          await sendTelegramMessage(targetNotifyChatId, `❌ **فشل في خط البناء Actions (${repoName})!** 🔥\nجاري محاولة التصحيح الذاتي وإنشاء مهمة في Trello...`);
           
           try {
             const parsedPr = await parseAndFetchGitHubUrl(runUrl);
             const autoFix = await processSmartAIResponse(`Generate a precise automated code fix for this CI/CD failure:\n${parsedPr}`, memory.dynamicMemory);
+
+            // إنشاء بطاقة Trello
+            await createTrelloCard(`🛠️ Auto-Patch: ${workflowName} Fix`, `Failing Workflow: ${runUrl}\n\nAnalysis:\n${autoFix}`);
 
             const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
             if (repoOctokit) {
