@@ -27,12 +27,17 @@ async function getRuntimeMemory() {
   }
 }
 
-async function saveRuntimeMemory(mem) {
-  try {
-    await kv.set("helios_runtime_memory", mem);
-  } catch (err) {
-    captureException(err, { context: "saveRuntimeMemory" });
-  }
+async function saveToErrorKB(errorMessage, solution, repo) {
+  const kb = await kv.get("global_error_kb") || {};
+  if (!kb[errorMessage]) kb[errorMessage] = [];
+  // إضافة الحل وتوثيق المصدر (المستودع)
+  kb[errorMessage].push({ solution, repo, timestamp: Date.now() });
+  await kv.set("global_error_kb", kb);
+}
+
+async function getSolutionFromKB(errorMessage) {
+  const kb = await kv.get("global_error_kb") || {};
+  return kb[errorMessage] || [];
 }
 
 async function generateWeeklySummary() {
