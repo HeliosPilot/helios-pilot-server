@@ -34,13 +34,8 @@ const DEFAULT_MEMORY = {
 // Note: createTrelloCard is imported from services/trello.js
 
 
-// دالة لتوليد شرح إنساني بسيط للـ PR
-async function generateHumanFriendlySummary(prContent) {
-  return await processSmartAIResponse(
-    `Explain this code change as if you are a senior lead engineer talking to a junior developer. Be friendly, concise, and explain "why" this change was made:\n${prContent}`,
-    []
-  );
-}
+// (Duplicates removed)
+
 
 // دالة لنشر الشرح كتعليق على الـ PR
 async function postHumanFriendlyComment(owner, repo, prNumber, summary) {
@@ -108,26 +103,7 @@ async function analyzeCiCost(repo, durationInMs) {
 // Note: saveToErrorKB is imported from services/memory.js
 
 
-// دالة لتوليد شرح إنساني بسيط للـ PR
-async function generateHumanFriendlySummary(prContent) {
-  return await processSmartAIResponse(
-    `Explain this code change as if you are a senior lead engineer talking to a junior developer. Be friendly, concise, and explain "why" this change was made:\n${prContent}`,
-    []
-  );
-}
-
-// دالة لنشر الشرح كتعليق على الـ PR
-async function postHumanFriendlyComment(owner, repo, prNumber, summary) {
-  const octokit = await getInstallationOctokitForRepo(owner, repo);
-  if (octokit) {
-    await octokit.issues.createComment({
-      owner,
-      repo,
-      issue_number: prNumber,
-      body: `🗣️ **HeliosPilot Insight:**\n\n${summary}`
-    });
-  }
-}
+// (Duplicates removed)
 
 async function generateWeeklySummary() {
   try {
