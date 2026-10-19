@@ -14,9 +14,35 @@ const DEFAULT_MEMORY = {
   rules: "أنت خبير مخضرم بخبرة 25 عاماً في هندسة النظم، أمن المعلومات، ASM، و DevSecOps. صُممت لحراسة وتطوير HELIOS-NET.",
   targetProject: "https://github.com/Ismail-Benali/HELIOS-NET",
   dynamicMemory: [],
-  userActiveRepos: {} // { chatId: "owner/repo" }
+  userActiveRepos: {}, // { chatId: "owner/repo" }
+  admins: [] // list of chatIds
 };
 
+// دالة للحصول على ذاكرة الفريق بناءً على الـ ChatID
+async function getTeamMemory(chatId) {
+  try {
+    const mem = await kv.get(`team_memory_${chatId}`);
+    return mem ? mem : { ...DEFAULT_MEMORY, dynamicMemory: [], userActiveRepos: {}, admins: [] };
+  } catch (err) {
+    captureException(err, { context: "getTeamMemory" });
+    return { ...DEFAULT_MEMORY, dynamicMemory: [], userActiveRepos: {}, admins: [] };
+  }
+}
+
+// دالة لحفظ ذاكرة الفريق
+async function saveTeamMemory(chatId, mem) {
+  try {
+    await kv.set(`team_memory_${chatId}`, mem);
+  } catch (err) {
+    captureException(err, { context: "saveTeamMemory" });
+  }
+}
+
+function isAdmin(chatId, memory) {
+  return (memory.admins && memory.admins.includes(chatId.toString())) || chatId.toString() === process.env.TELEGRAM_CHAT_ID;
+}
+
+// دالة للحصول على الذاكرة العامة (القديمة)
 async function getRuntimeMemory() {
   try {
     const mem = await kv.get("helios_runtime_memory");
@@ -24,6 +50,14 @@ async function getRuntimeMemory() {
   } catch (err) {
     captureException(err, { context: "getRuntimeMemory" });
     return DEFAULT_MEMORY;
+  }
+}
+
+async function saveRuntimeMemory(mem) {
+  try {
+    await kv.set("helios_runtime_memory", mem);
+  } catch (err) {
+    captureException(err, { context: "saveRuntimeMemory" });
   }
 }
 
