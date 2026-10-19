@@ -92,6 +92,22 @@ export async function addCommentToIssueOrPR(url, commentBody) {
   }
 }
 
+export async function createBranch(owner, repo, branchName, baseBranch = "main") {
+  const octokit = await getInstallationOctokitForRepo(owner, repo);
+  const { data: ref } = await octokit.git.getRef({
+    owner,
+    repo,
+    ref: `heads/${baseBranch}`
+  }).catch(() => octokit.git.getRef({ owner, repo, ref: "heads/master" }));
+  
+  await octokit.git.createRef({
+    owner,
+    repo,
+    ref: `refs/heads/${branchName}`,
+    sha: ref.object.sha
+  });
+}
+
 export async function createAutomatedPR(owner, repo, taskType, fixContent, filePath) {
   try {
     const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
