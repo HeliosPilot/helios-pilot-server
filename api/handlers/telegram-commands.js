@@ -1,7 +1,8 @@
-import { sendTelegramMessage, setTelegramMessageReaction } from '../../services/telegram.js';
-import { getRuntimeMemory, saveRuntimeMemory, getTeamMemory, saveTeamMemory, isAdmin } from '../index.js';
+import { sendTelegramMessage } from '../../services/telegram.js';
+import { getTeamMemory, saveTeamMemory, isAdmin } from '../index.js';
 import { processSmartAIResponse } from '../../services/ai.js';
-import { fetchAppInstallationsAndRepos, fetchCodebaseContextForRAG } from '../../services/github.js';
+import { fetchAppInstallationsAndRepos, fetchCodebaseContextForRAG, createBranch, createAutomatedPR } from '../../services/github.js';
+import { generateHardenedFeature } from '../../services/feature-agent.js';
 
 export async function handleTelegramCommand(cleanCmd, targetChatId, userText, userTextLower, memory) {
   if (cleanCmd === "/status") {
@@ -40,6 +41,30 @@ export async function handleTelegramCommand(cleanCmd, targetChatId, userText, us
     return true;
   }
   
-  // Add other command handlers...
+  if (cleanCmd.startsWith("/feature ")) {
+    if (!isAdmin(targetChatId, memory)) {
+        await sendTelegramMessage(targetChatId, "⛔ غير مصرح لك بتنفيذ هذا الأمر.");
+        return true;
+    }
+    const requirement = cleanCmd.replace("/feature ", "").trim();
+    const activeRepo = memory.userActiveRepos[targetChatId] || "Ismail-Benali/HELIOS-NET";
+    const [owner, repo] = activeRepo.split("/");
+    
+    await sendTelegramMessage(targetChatId, `🤖 **HeliosPilot Feature Agent:** جاري التخطيط والتوليد للميزة: \`${requirement}\`...`);
+    
+    const context = await fetchCodebaseContextForRAG(owner, repo);
+    const result = await generateHardenedFeature(requirement, context, memory.dynamicMemory);
+    
+    if (result.success) {
+        const branchName = `feat/${Date.now()}`;
+        await createBranch(owner, repo, branchName);
+        const prResult = await createAutomatedPR(owner, repo, "feature", result.code, "new-feature.js");
+        await sendTelegramMessage(targetChatId, `✅ **تمت المهمة!** تم إنشاء الفرع \`${branchName}\` وفتح PR بالميزة الجديدة.\n${prResult}`);
+    } else {
+        await sendTelegramMessage(targetChatId, `❌ **فشل التوليد:** ${result.error}`);
+    }
+    return true;
+  }
+  
   return false;
 }
