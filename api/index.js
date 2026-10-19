@@ -3,6 +3,9 @@ import { initSentry, captureException } from '../services/sentry.js';
 import { sendTelegramMessage, answerTelegramCallback, setTelegramMessageReaction } from '../services/telegram.js';
 import { verifyGitHubSignature, addCommentToIssueOrPR, parseAndFetchGitHubUrl, fetchAppInstallationsAndRepos, getInstallationOctokitForRepo } from '../services/github.js';
 import { processSmartAIResponse } from '../services/ai.js';
+import { getRuntimeMemory, saveRuntimeMemory, getTeamMemory, saveTeamMemory, isAdmin, saveToErrorKB, getSolutionFromKB } from '../services/memory.js';
+import { createTrelloCard } from '../services/trello.js';
+import { sendUnifiedNotification } from '../services/notifier.js';
 
 // Initialize Sentry error tracking
 initSentry();
@@ -18,60 +21,18 @@ const DEFAULT_MEMORY = {
   admins: [] // list of chatIds
 };
 
-// دالة للحصول على ذاكرة الفريق بناءً على الـ ChatID
-async function getTeamMemory(chatId) {
-  try {
-    const mem = await kv.get(`team_memory_${chatId}`);
-    return mem ? mem : { ...DEFAULT_MEMORY, dynamicMemory: [], userActiveRepos: {}, admins: [] };
-  } catch (err) {
-    captureException(err, { context: "getTeamMemory" });
-    return { ...DEFAULT_MEMORY, dynamicMemory: [], userActiveRepos: {}, admins: [] };
-  }
-}
+// Removed duplicate function definition
 
-// دالة لحفظ ذاكرة الفريق
-async function saveTeamMemory(chatId, mem) {
-  try {
-    await kv.set(`team_memory_${chatId}`, mem);
-  } catch (err) {
-    captureException(err, { context: "saveTeamMemory" });
-  }
-}
 
-function isAdmin(chatId, memory) {
-  return (memory.admins && memory.admins.includes(chatId.toString())) || chatId.toString() === process.env.TELEGRAM_CHAT_ID;
-}
 
-// دالة للحصول على الذاكرة العامة (القديمة)
-async function getRuntimeMemory() {
-  try {
-    const mem = await kv.get("helios_runtime_memory");
-    return mem ? mem : DEFAULT_MEMORY;
-  } catch (err) {
-    captureException(err, { context: "getRuntimeMemory" });
-    return DEFAULT_MEMORY;
-  }
-}
+// Removed duplicate
 
-async function saveRuntimeMemory(mem) {
-  try {
-    await kv.set("helios_runtime_memory", mem);
-  } catch (err) {
-    captureException(err, { context: "saveRuntimeMemory" });
-  }
-}
 
-// دالة لفتح بطاقة Trello عند فشل العملية
-async function createTrelloCard(title, description) {
-  const apiKey = process.env.TRELLO_API_KEY;
-  const apiToken = process.env.TRELLO_API_TOKEN;
-  const listId = process.env.TRELLO_LIST_ID;
-  
-  if (!apiKey || !apiToken || !listId) return;
+// Note: getRuntimeMemory and saveRuntimeMemory are imported from services/memory.js
 
-  const url = `https://api.trello.com/1/cards?key=${apiKey}&token=${apiToken}&idList=${listId}&name=${encodeURIComponent(title)}&desc=${encodeURIComponent(description)}`;
-  await fetch(url, { method: "POST" });
-}
+
+// Note: createTrelloCard is imported from services/trello.js
+
 
 // دالة لتوليد شرح إنساني بسيط للـ PR
 async function generateHumanFriendlySummary(prContent) {
@@ -144,13 +105,8 @@ async function analyzeCiCost(repo, durationInMs) {
   return cost;
 }
 
-async function saveToErrorKB(errorMessage, solution, repo) {
-  const kb = await kv.get("global_error_kb") || {};
-  if (!kb[errorMessage]) kb[errorMessage] = [];
-  // إضافة الحل وتوثيق المصدر (المستودع)
-  kb[errorMessage].push({ solution, repo, timestamp: Date.now() });
-  await kv.set("global_error_kb", kb);
-}
+// Note: saveToErrorKB is imported from services/memory.js
+
 
 // دالة لتوليد شرح إنساني بسيط للـ PR
 async function generateHumanFriendlySummary(prContent) {
@@ -219,35 +175,37 @@ async function triageAndLabelIssue(owner, repo, issueNumber, issueTitle, issueBo
   }
 }
 
-// دالة RAG الخفيفة لجلب هيكل الكود ومحتوى الملفات الأساسية للإجابة بدقة
-async function fetchCodebaseContextForRAG(owner = "Ismail-Benali", repo = "HELIOS-NET") {
+// دالة RAG ذكية تجلب هيكلية الملفات والدوال
+async function fetchCodebaseContextForRAG(owner, repo) {
   try {
     const octokit = await getInstallationOctokitForRepo(owner, repo);
-    if (!octokit) return "Repository access failed: No Octokit instance.";
+    if (!octokit) return "Repository access failed.";
 
-    // جلب الملفات الأساسية فقط
-    const keyFiles = ["api/index.js", "services/ai.js", "services/github.js", "package.json"];
-    let context = `Repository Context for HELIOS-NET:\n`;
+    // 1. جلب هيكل الملفات
+    const { data: root } = await octokit.repos.getContent({ owner, repo, path: "" });
+    let context = `Codebase Map:\n${root.map(f => f.name).join(", ")}\n\n`;
 
-    try {
-      const { data: contents } = await octokit.repos.getContent({ owner, repo, path: "" });
-      context += "Root Files: " + (Array.isArray(contents) ? contents.map(f => f.name).join(", ") : "Main entry") + "\n\n";
-    } catch (e) { context += "Could not fetch root file structure.\n"; }
-
+    // 2. جلب محتوى الملفات الأساسية مع التركيز على الـ Imports والدوال
+    const keyFiles = ["api/index.js", "services/ai.js", "services/github.js"];
     for (const path of keyFiles) {
       try {
         const { data: file } = await octokit.repos.getContent({ owner, repo, path });
         const content = Buffer.from(file.content, 'base64').toString('utf8');
-        context += `\n--- File Content: ${path} ---\n${content.substring(0, 3000)}\n`;
+        
+        // استخراج أسطر الـ Imports وتعريفات الدوال (أسلوب AST مبسط)
+        const lines = content.split('\n');
+        const summary = lines.filter(line => line.includes('import') || line.includes('function') || line.includes('export')).join('\n');
+        
+        context += `\n--- File: ${path} (Definitions & Imports) ---\n${summary}\n`;
       } catch (e) {
-        context += `\n--- File: ${path} --- (Error: ${e.message})\n`;
+        context += `\n--- File: ${path} --- (Error)\n`;
       }
     }
 
     return context;
   } catch (err) {
     console.error("fetchCodebaseContextForRAG failed:", err);
-    return "Repository context fetch failed: " + err.message;
+    return "Repository context fetch failed.";
   }
 }
 
