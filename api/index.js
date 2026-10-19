@@ -152,27 +152,6 @@ async function saveToErrorKB(errorMessage, solution, repo) {
   await kv.set("global_error_kb", kb);
 }
 
-// دالة لتوليد شرح إنساني بسيط للـ PR
-async function generateHumanFriendlySummary(prContent) {
-  return await processSmartAIResponse(
-    `Explain this code change as if you are a senior lead engineer talking to a junior developer. Be friendly, concise, and explain "why" this change was made:\n${prContent}`,
-    []
-  );
-}
-
-// دالة لنشر الشرح كتعليق على الـ PR
-async function postHumanFriendlyComment(owner, repo, prNumber, summary) {
-  const octokit = await getInstallationOctokitForRepo(owner, repo);
-  if (octokit) {
-    await octokit.issues.createComment({
-      owner,
-      repo,
-      issue_number: prNumber,
-      body: `🗣️ **HeliosPilot Insight:**\n\n${summary}`
-    });
-  }
-}
-
 async function generateWeeklySummary() {
   try {
     const memory = await getRuntimeMemory();
@@ -425,6 +404,8 @@ export default async function handler(req, res) {
         }
         return res.status(200).json({ success: true });
       }
+
+      if (event === "workflow_run" && ghPayload.action === "completed") {
         const workflowName = ghPayload.workflow_run?.name || "Workflow";
         const conclusion = ghPayload.workflow_run?.conclusion;
         const runUrl = ghPayload.workflow_run?.html_url;
@@ -570,12 +551,46 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true });
       }
 
-      return res.status(200).json({ received: true });
-    }
+      // إضافة دعم لحدث push لتفعيل المحلل الذاتي ونظام المناعة
+      if (event === "push") {
+        const repo = ghPayload.repository?.name;
+        const owner = ghPayload.repository?.owner?.login;
+        const branch = ghPayload.ref?.replace("refs/heads/", "");
+        
+        if (branch === "main" || branch === "master") {
+          await sendTelegramMessage(envChatId, `🛡️ **HeliosPilot Immunity Engine:** فحص أمني استباقي للمستودع \`${repo}\`...`);
+          
+          // 1. فحص استباقي للمفاتيح المكشوفة والدوال الخطرة
+          const files = ghPayload.commits?.flatMap(c => [...c.added, ...c.modified]) || [];
+          const octokit = await getInstallationOctokitForRepo(owner, repo);
+          
+          for (const filePath of files) {
+            const { data: fileData } = await octokit.repos.getContent({ owner, repo, path: filePath });
+            const content = Buffer.from(fileData.content, 'base64').toString('utf-8');
+            
+            // اكتشاف مفاتيح API أو دوال خطرة
+            if (content.includes("AI_KEY") || content.includes("SECRET") || content.includes("eval(") || content.includes("exec(")) {
+              await sendTelegramMessage(envChatId, `🚨 **تنبيه أمني فوري في ${filePath}:** تم اكتشاف كود غير آمن أو مفاتيح مكشوفة!`);
+            }
+          }
+          
+          // 2. تحديث الخريطة المعمارية
+          const codebaseContext = await fetchCodebaseContextForRAG(owner, repo);
+          const map = await processSmartAIResponse(`Generate a detailed technical map of this codebase, describing the role of each key file and their relationships:\n${codebaseContext}`, []);
+          await import('../services/github.js').then(m => m.createFileInRepo(owner, repo, "CODEBASE_MAP.md", map, "🤖 Auto-update codebase architectural map"));
+        }
+        return res.status(200).json({ success: true });
+      }
 
-    // 3. التعامل مع رسائل المستخدِم المحادثات المباشرة في Telegram
-    if (payload.message && payload.message.text) {
-      const userText = payload.message.text.trim();
+      return res.status(200).json({ received: true });
+    } catch (e) {
+        captureException(e, { context: "webhook_handler" });
+        return res.status(500).json({ error: "Webhook error" });
+    }
+  }
+
+  // 3. التعامل مع رسائل المستخدِم المحادثات المباشرة في Telegram
+  if (payload.message && payload.message.text) {
       const userTextLower = userText.toLowerCase();
       const senderChatId = payload.message.chat?.id?.toString();
       const messageId = payload.message.message_id;
@@ -606,14 +621,14 @@ export default async function handler(req, res) {
       }
 
       await setTelegramMessageReaction(targetChatId, messageId, "🧠");
-      const memory = await getRuntimeMemory();
+      const memory = await getTeamMemory(targetChatId);
 
       if (!userText.startsWith("/") && userText.length > 15 && (userText.includes("قاعدة") || userText.includes("هندسة") || userText.includes("أمان") || userText.includes("مهم") || userText.includes("helios"))) {
         memory.dynamicMemory.push(userText);
         if (memory.dynamicMemory.length > 25) {
           memory.dynamicMemory.shift();
         }
-        await saveRuntimeMemory(memory);
+        await saveTeamMemory(targetChatId, memory);
       }
 
       // ج) الأوامر الفردية المنفصلة بأولوية صارمة
@@ -632,14 +647,14 @@ export default async function handler(req, res) {
 
       if (cleanCmd === "/clear") {
         memory.lastContextUrl = null;
-        await saveRuntimeMemory(memory);
+        await saveTeamMemory(targetChatId, memory);
         await sendTelegramMessage(targetChatId, "🧹 تم إعادة تهيئة السياق الهندسي بنجاح. ⚡");
         return res.status(200).json({ success: true });
       }
 
       if (cleanCmd === "/metrics") {
         await sendTelegramMessage(targetChatId, "🔧 **HeliosPilot Code Metrics**...\n\nجاري تحليل مقاييس الكود مع خبير 25 سنة...");
-        const memory = await getRuntimeMemory();
+        const memory = await getTeamMemory(targetChatId);
         const metrics = await processSmartAIResponse(`Analyze code metrics for HELIOS-NET: complexity, maintainability, and suggest improvements. Provide technical English comments only.`, memory.dynamicMemory);
         await sendTelegramMessage(targetChatId, `📊 *مقاييس HELIOS-NET المخضرم:*\n\n${metrics}`, {
           inline_keyboard: [[{ text: "🔄 تحليل مرة أخرى", callback_data: `comment:${memory.targetProject}` }]]
@@ -648,6 +663,7 @@ export default async function handler(req, res) {
       }
 
       if (cleanCmd.startsWith("/analyze-perf")) {
+        const memory = await getTeamMemory(targetChatId);
         const activeRepo = memory.userActiveRepos[targetChatId] || "Ismail-Benali/HELIOS-NET";
         await sendTelegramMessage(targetChatId, `🚀 *HeliosPilot Performance Analyzer:* جارٍ تحليل الكود في \`${activeRepo}\`...`);
         
@@ -660,6 +676,10 @@ export default async function handler(req, res) {
       }
 
       if (cleanCmd.startsWith("/review ")) {
+        if (!isAdmin(targetChatId, await getTeamMemory(targetChatId))) {
+            await sendTelegramMessage(targetChatId, "⛔ غير مصرح لك بتنفيذ هذا الأمر.");
+            return res.status(200).json({ success: false });
+        }
         const prUrl = cleanCmd.replace("/review ", "").trim();
         await sendTelegramMessage(targetChatId, "🛡️ **HeliosPilot Security Audit:** جاري فحص الـ PR...");
         
@@ -671,8 +691,12 @@ export default async function handler(req, res) {
       }
 
       if (cleanCmd === "/createwiki") {
+        if (!isAdmin(targetChatId, await getTeamMemory(targetChatId))) {
+            await sendTelegramMessage(targetChatId, "⛔ غير مصرح لك بتنفيذ هذا الأمر.");
+            return res.status(200).json({ success: false });
+        }
         await sendTelegramMessage(targetChatId, "📝 **HeliosPilot Wiki Engine** جاري العمل...");
-        const memory = await getRuntimeMemory();
+        const memory = await getTeamMemory(targetChatId);
         const activeRepo = memory.userActiveRepos[targetChatId] || "Ismail-Benali/HELIOS-NET";
         const [owner, repo] = activeRepo.split("/");
         
@@ -685,8 +709,12 @@ export default async function handler(req, res) {
       }
 
       if (cleanCmd === "/autofix") {
+        if (!isAdmin(targetChatId, await getTeamMemory(targetChatId))) {
+            await sendTelegramMessage(targetChatId, "⛔ غير مصرح لك بتنفيذ هذا الأمر.");
+            return res.status(200).json({ success: false });
+        }
         await sendTelegramMessage(targetChatId, "🛠️ **HeliosPilot Auto-Patch Engine** بدء التشغيل...");
-        const memory = await getRuntimeMemory();
+        const memory = await getTeamMemory(targetChatId);
         const activeRepo = memory.userActiveRepos[targetChatId] || "Ismail-Benali/HELIOS-NET";
         const [owner, repo] = activeRepo.split("/");
         
@@ -707,6 +735,35 @@ export default async function handler(req, res) {
           await sendTelegramMessage(targetChatId, "⚠️ تعذر الوصول لـ GitHub Code Scanning. تأكد من تفعيل الأمان في المستودع.");
           captureException(e, { context: "autofix" });
         }
+        return res.status(200).json({ success: true });
+      }
+
+      if (cleanCmd.startsWith("/setrepo ")) {
+        const memory = await getTeamMemory(targetChatId);
+        if (!isAdmin(targetChatId, memory)) {
+            await sendTelegramMessage(targetChatId, "⛔ غير مصرح لك بتنفيذ هذا الأمر.");
+            return res.status(200).json({ success: false });
+        }
+        const repo = cleanCmd.replace("/setrepo ", "").trim();
+        memory.userActiveRepos[targetChatId] = repo;
+        await saveTeamMemory(targetChatId, memory);
+        await sendTelegramMessage(targetChatId, `✅ تم تعيين المستودع النشط إلى: \`${repo}\``);
+        return res.status(200).json({ success: true });
+      }
+
+      if (cleanCmd.startsWith("/ask ")) {
+        const query = cleanCmd.replace("/ask ", "").trim();
+        const memory = await getTeamMemory(targetChatId);
+        await sendTelegramMessage(targetChatId, `🔍 *HeliosPilot RAG Engine:* جارٍ البحث في سياق ${memory.userActiveRepos[targetChatId] || "المشروع"}...`);
+        
+        const activeRepo = memory.userActiveRepos[targetChatId] || "Ismail-Benali/HELIOS-NET";
+        const [owner, repo] = activeRepo.split("/");
+        
+        // جلب سياق ذكي (ملفات README + الكود الأساسي)
+        const context = await fetchCodebaseContextForRAG(owner, repo);
+        const answer = await processSmartAIResponse(`Answer the following question based on the codebase context provided:\nQuestion: ${query}\nContext: ${context}`, memory.dynamicMemory);
+        
+        await sendTelegramMessage(targetChatId, `🤖 *HeliosPilot Answer:*\n\n${answer}`);
         return res.status(200).json({ success: true });
       }
 
@@ -747,7 +804,7 @@ export default async function handler(req, res) {
           return res.status(200).json({ success: true });
         }
         memory.lastContextUrl = urlMatch[0];
-        await saveRuntimeMemory(memory);
+        await saveTeamMemory(targetChatId, memory);
 
         await sendTelegramMessage(targetChatId, "🔍 جاري تحليل المستودع والتدقيق الأمني... 🛡️");
         const extractedData = await parseAndFetchGitHubUrl(userText);
@@ -787,4 +844,3 @@ export default async function handler(req, res) {
     captureException(error, { context: "main_handler" });
     return res.status(200).json({ error: error.message });
   }
-}
