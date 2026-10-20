@@ -398,7 +398,10 @@ export default async function handler(req, res) {
             `• **الحالة:** SUCCESS 🟢\n` +
             `• **الرابط:** ${runUrl}`);
         }
-        return res.status(200).json({ success: true });
+      } catch (err) {
+          captureException(err, { context: "workflow_run" });
+      }
+      return res.status(200).json({ success: true });
       }
 
       if (event === "check_run" && ghPayload.action === "completed") {
