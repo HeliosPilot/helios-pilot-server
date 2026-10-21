@@ -45,6 +45,7 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:18px 0
   <div class="card"><div class="label">KV</div><div class="value" id="kv">--</div></div>
   <div class="card"><div class="label">Last Check</div><div class="value" id="last">--</div></div>
   <div class="card"><div class="label">Bot Test</div><div class="value" id="botTest">--</div></div>
+  <div class="card"><div class="label">API Latency</div><div class="value" id="latency">--</div></div>
   <div class="card"><div class="label">API Response</div><div class="value" id="apiRaw" style="font-size:.85rem;word-break:break-word">--</div></div>
 </div>
 <div class="terminal" id="terminalOutput">Loading dashboard...</div>
@@ -71,8 +72,11 @@ async function load() {
     set('sentry', s.sentry);
     set('kv', s.kv);
     document.getElementById('last').textContent = new Date().toLocaleTimeString();
-    const tr = await fetch('/api', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message:{ chat:{id:12345}, text:'/status', message_id:Date.now() } }) });
+    const t0 = performance.now();
+    const tr = await fetch('/api?test=true');
     const td = await tr.json();
+    const ms = Math.round(performance.now() - t0);
+    document.getElementById('latency').textContent = ms + ' ms';
     document.getElementById('botTest').textContent = td.success ? 'OK' : 'Error';
     document.getElementById('botTest').style.color = td.success ? '#22c55e' : '#ef4444';
     document.getElementById('apiRaw').textContent = JSON.stringify(td);

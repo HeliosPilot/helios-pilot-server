@@ -323,6 +323,14 @@ export default async function handler(req, res) {
     });
   }
 
+  if (req.method === "GET" && req.query?.test === "true") {
+    return res.status(200).json({
+      success: true,
+      message: "Bot handler reachable",
+      timestamp: new Date().toISOString()
+    });
+  }
+
   if (req.method !== "POST") {
     return res.status(200).json({
       status: "HeliosPilot Veteran AI DevSecOps Companion is online! ⚡",
