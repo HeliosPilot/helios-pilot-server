@@ -1,144 +1,151 @@
 # HeliosPilot - AI DevSecOps Companion
 
-![HeliosPilot Logo](https://raw.githubusercontent.com/HeliosPilot/helios-pilot-server/main/api/index.js) <!-- Placeholder -->
+HeliosPilot is a serverless Telegram bot and dashboard for monitoring GitHub repositories, reviewing code, and assisting with DevSecOps workflows. It connects Telegram, GitHub webhooks, Vercel KV, Sentry, and AI providers (Groq / OpenRouter) in one deployment.
 
-> **HeliosPilot** is an intelligent Telegram bot that monitors your GitHub repositories, analyzes code, and provides DevSecOps expertise with 25 years of experience. It combines Sentry error tracking, GitHub Actions monitoring, and AI-powered code analysis to keep your projects secure and running smoothly.
+## Features
 
-## 🚀 Features
+- GitHub Actions, issue, pull request, Dependabot, and code-scanning monitoring
+- AI-powered code review, security analysis, and repository Q&A
+- Persistent runtime memory backed by Vercel KV
+- Protected dashboard with health checks, command runner, charts, and memory editor
+- Telegram commands for status, metrics, wiki generation, and auto-fix workflows
+- Optional Sentry error tracking
+- Health and connectivity endpoints
 
-- **🛡️ GitHub Actions Monitoring**: Watch CI/CD pipelines and detect failures instantly
-- **🔍 Code Analysis**: AI-powered code reviews and security audits
-- **📊 Security Alerts**: Dependabot and code scanning alerts integration
-- **💬 Telegram Integration**: Full control and notifications via Telegram
-- **🧠 Dynamic Memory**: Remembers context and learns from your projects
-- **📈 Sentry Error Tracking**: Captures and reports application errors
-- **⚡ 25-Year Veteran Persona**: Expert-level technical guidance in English
+## Architecture
 
-## 📦 Installation
-
-### Prerequisites
-
-- Node.js >= 18.x
-- Telegram Bot Token (from @BotFather)
-- GitHub App credentials (for Actions monitoring)
-- Sentry DSN (for error tracking)
-
-### Setup
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/Ismail-Benali/helios-pilot-server.git
-   cd helios-pilot-server
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-3. **Environment Variables:**
-   Create a `.env` file with:
-   ```env
-   TELEGRAM_BOT_TOKEN=your_bot_token
-   TELEGRAM_CHAT_ID=your_chat_id
-   GROQ_API_KEY=your_groq_key
-   OPENROUTER_API_KEY=your_openrouter_key
-   GITHUB_WEBHOOK_SECRET=your_webhook_secret
-   APP_ID=your_github_app_id
-   PRIVATE_KEY=your_github_private_key
-   SENTRY_DSN=your_sentry_dsn
-   ```
-
-4. **Deploy:**
-   ```bash
-   npm run dev
-   # Or deploy to Vercel
-   ```
-
-## 🛠️ Usage
-
-### Telegram Commands
-
-| Command | Arabic Description | English Description | Example | Result |
-|---------|-------------------|---------------------|---------|--------|
-| `/start` | بدء التشغيل والترحيب بالبوت | Initialize the bot and greetings | اكتب `/start` | 👋 أهلاً بك يا خالقي العظيم H3l!0s_T3k! ⚡ أنا **HeliosPilot**، الحارس المخضرم (25 عام خبرة) ومساعد **HELIOS-NET** (AI DevSecOps Companion) والمراقب لخطوط الـ Actions و Sentry. |
-| `/help` | عرض الأوامر والميزات المتاحة | Show available commands and features | اكتب `/help` | قائمة بجميع الأوامر مع الشرح (هذه الجدول). |
-| `/status` | حالة الحارس والذاكرة الهندسية | Check system status and memory | اكتب `/status` | ⚡ *حالة حارس HELIOS-NET (Actions & Sentry Monitored):*\n\n`- **المالك:** \`Ismail-Benali\`\n`- **المشروع المحمي:** https://github.com/Ismail-Benali/HELIOS-NET\n`- **آخر رابط في السياق:** لا يوجد\n`- **أحدث الملاحظات الهندسية والأمنية:** لا توجد ملاحظات مسجلة.` |
-| `/clear` | إعادة تهيئة السياق والمسح | Reset context and memory | اكتب `/clear` | 🧹 تم إعادة تهيئة السياق الهندسي بنجاح. ⚡ |
-| `/metrics` | مقاييس جودة الكود (جديد) | Code quality metrics (new) | اكتب `/metrics` | 📊 *مقاييس HELIOS-NET المخضرم:*\n\n⚠️ **Complexity:** 45 (الحد: 20)\n📈 **Coverage:** 78% (الحد: 80%)\n🔁 **Duplication:** 12% (الحد: <10%)\n📝 **Technical Debt:** 15 ساعة\n🟢 **Functions صحية:** 67🔴 **Functions needing review:** 23 |
-| `/weekly` | التقرير الأسبوعي (جديد) | Weekly report (new) | اكتب `/weekly` | 📊 *ملخص أسبوعي HELIOS-NET* ⚡\n\n`- **المالك:** \`Ismail-Benali\`\n`- **المشروع:** HELIOS-NET\n`- **المستودعات المحمية:** 1 مستودع\n`- **اتجاه التعقيد:** ↗️ زيادة ( +5 هذا الأسبوع )\n`- **اتجاه التغطية:** ↘️ انخفاض ( -2% هذا الأسبوع )\n`- **تنبيهات أمنية:** 0 نتائج جديدة\n`- **المطورون النشطون:** 3\n`- **التبعيات:** 42총 (2 قديمة)` |
-| `/createwiki` | توليد وتوثيق WIKI.md (جديد) | Generate and document WIKI.md (new) | اكتب `/createwiki` | 📝 **HeliosPilot Wiki Engine:** يقوم باستخراج سياق المشروع، اقتراح هيكلة الملفات، وتوليد `WIKI.md` أو إنشاء مجلدات/ملفات التوثيق في GitHub وفتح Pull Request بها تلقائياً. |
-| `/autofix` | فحص وترقيع الثغرات (جديد) | Scan and patch security vulnerabilities (new) | اكتب `/autofix` | 🛠️ **HeliosPilot Auto-Patch Engine:** يقوم بفحص الـ Code Scanning Alerts في GitHub، توليد ترقيع أمني، وفتح Pull Request تلقائي بالحل. |
-| `المستودعات` | عرض المستودعات المتاحة | List available repositories | اكتب `المستودعات` | 📂 عرض قائمة المستودعات التي يراها البوت، مما يتيح لك اختيار المستودع المستهدف لأي إجراء أو تعديلات لاحقة. |
-| `/gif` *(Deprecated)* | اختبار إرسال صور GIF (ملغى) | Test GIF sending (deprecated) | اكتب `/gif` | ⚠️ تم إلغاء 명령 GIF، استخدم الصور العادية. |
-
-**ملاحظة:** أوامر `/metrics` و `/weekly` تتطلب تفعيل خصائص جودة الكود في إعدادات GitHub App والمستودع.
-
-### GitHub Webhooks
-
-Add a webhook to your GitHub repository:
-- **URL**: Your Vercel deployment URL
-- **Events**: 
-  - `workflow_run`
-  - `check_run`
-  - `issues`
-  - `pull_request`
-  - `dependabot_alert`
-  - `code_scanning_alert`
-
-## 🔒 Locked Stable AI Models
-
-To ensure 100% production reliability and prevent model deprecation or 404 errors, HeliosPilot locks its AI engine to proven stable models (`services/ai.js`):
-
-| Provider | Locked Model Identifier | Status | Purpose |
-|----------|-------------------------|--------|---------|
-| **Groq** | `llama-3.1-8b-instant` | 🔒 Immutable | Primary ultra-fast inference & code metrics |
-| **OpenRouter** | `openai/gpt-4o-mini` | 🔒 Immutable | Reliable fallback AI reasoning & security analysis |
-
-These models are frozen using `Object.freeze` in code to prevent unauthorized or accidental modifications.
-
-## 🏗️ Architecture
-
-```
-HeliosPilot Serverless Architecture
-├── api/index.js          # Main handler (Express/Vercel Serverless)
-├── services/
-│   ├── ai.js            # Groq/OpenRouter AI integration
-│   ├── github.js        # GitHub API client
-│   ├── telegram.js      # Telegram Bot API
-│   └── sentry.js        # Sentry error tracking
-└── package.json          # Dependencies and scripts
+```text
+api/
+  index.js          Main Telegram + GitHub webhook handler
+  dashboard.js      Token-protected dashboard HTML endpoint
+  memory.js         Token-protected memory read/write endpoint
+lib/
+  security.js       Token comparison, rate limiting, audit logging
+services/
+  ai.js             Groq / OpenRouter fallback
+  github.js         GitHub App + REST integration
+  memory.js         Vercel KV memory storage
+  sentry.js         Error tracking
+  telegram.js       Telegram Bot API
+  trello.js         Trello integration
+views/
+  dashboard.html    Dashboard UI
+index.html          English landing page
+ar/index.html       Arabic landing page
 ```
 
-## 📡 Supported GitHub Events
+## Requirements
 
-- `workflow_run` - CI/CD pipeline status
-- `check_run` - Test suite results
-- `issues` - Issue creation and updates
-- `pull_request` - PR reviews and updates
-- `dependabot_alert` - Dependency vulnerability alerts
-- `code_scanning_alert` - Code security alerts
+- Node.js 18 or newer
+- Telegram bot token
+- GitHub App credentials
+- Vercel KV (for memory and rate limiting)
+- Optional: Sentry DSN, Groq/OpenRouter API keys
 
-## 👥 Contributing
+## Environment Variables
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+Copy `.env.example` to `.env` and fill in the values:
 
-## 📄 License
+```env
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+TELEGRAM_WEBHOOK_SECRET=
+GROQ_API_KEY=
+OPENROUTER_API_KEY=
+GITHUB_APP_ID=
+GITHUB_PRIVATE_KEY=
+GITHUB_WEBHOOK_SECRET=
+SENTRY_DSN=
+DASHBOARD_TOKEN=
+KV_REST_API_URL=
+KV_REST_API_TOKEN=
+```
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+`DASHBOARD_TOKEN` is required for `/dashboard.html` and `/api/memory`. The dashboard fails closed when it is missing.
 
-## 🙏 Acknowledgments
+`TELEGRAM_WEBHOOK_SECRET` is strongly recommended. When it is not set, the API cannot verify Telegram webhook authenticity and logs a warning.
 
-- Built with ❤️ by Ismail-Benali
-- Powered by Groq & OpenRouter AI
-- GitHub Actions integration
-- Sentry error monitoring
-- Telegram Bot API
+## Local Development
+
+```bash
+npm install
+npm run check
+npm test
+```
+
+There is no local HTTP server script. Deploy to Vercel or use the Vercel CLI for a full local preview:
+
+```bash
+npx vercel dev
+```
+
+## Dashboard
+
+Open:
+
+```text
+https://<your-deployment>/dashboard.html
+```
+
+Enter the value of `DASHBOARD_TOKEN`. The dashboard loads through `/api/dashboard?token=...` and its API calls send the token through the `x-dashboard-token` header.
+
+Dashboard capabilities:
+
+- Service health cards
+- Bot and Telegram connectivity tests
+- API latency and session charts
+- Command runner with numbered command selection
+- Persistent memory editor with Save / Clear
+- JSON log export
+
+## API Endpoints
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| POST | `/api` | Telegram webhook, GitHub webhook, and dashboard commands |
+| GET | `/api?health=true` | Service health |
+| GET | `/api?test=true` | Connectivity test |
+| GET | `/api/dashboard?token=...` | Protected dashboard HTML |
+| GET | `/api/memory` | Read runtime memory (token required) |
+| POST | `/api/memory` | Save or clear runtime memory (token required) |
+
+## Telegram Commands
+
+| Command | Purpose |
+| --- | --- |
+| `/start` / `/help` | Show help |
+| `/status` | Show system and memory status |
+| `/clear` | Clear the last context |
+| `/metrics` | Request code metrics |
+| `/weekly` | Generate a weekly summary |
+| `/createwiki` | Generate `WIKI.md` and open a PR |
+| `/autofix` | Scan security alerts and propose a patch |
+| `repos` | List connected repositories |
+
+## Security Notes
+
+- Dashboard and memory endpoints require `DASHBOARD_TOKEN` and fail closed if it is absent.
+- Memory writes require the `x-dashboard-token` header.
+- Dashboard and dashboard-command requests are rate limited through Vercel KV.
+- Memory changes and dashboard commands are written to the `helios_audit_log` KV entry.
+- GitHub webhooks are verified with `GITHUB_WEBHOOK_SECRET`.
+- Set `TELEGRAM_WEBHOOK_SECRET` to verify Telegram webhook requests.
+
+## Testing
+
+```bash
+npm run check
+npm test
+```
+
+CI runs both commands on every push and pull request to `main`.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
 
 ---
 
-**HeliosPilot** - Protecting HELIOS-NET since 2026 ⚡🛡️
+## نظرة سريعة بالعربية
+
+HeliosPilot بوت Telegram ولوحة تحكم Serverless لمراقبة GitHub وتحليل الكود وإدارة الذاكرة. لوحة التحكم محمية بـ `DASHBOARD_TOKEN`، والذاكرة محفوظة في Vercel KV. شغّل `npm run check` و`npm test` قبل النشر.

@@ -286,7 +286,7 @@ document.getElementById('runCommand').addEventListener('click', async () => {
   try {
     const r = await fetch('/api', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: memoryHeaders(),
       body: JSON.stringify({ message: { chat: { id: 12345 }, text: cmd, message_id: Date.now() } })
     });
     const d = await r.json();

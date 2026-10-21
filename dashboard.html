@@ -37,18 +37,19 @@ const error = document.getElementById('error');
 const saved = sessionStorage.getItem('dashboardToken');
 if (saved) openDashboard(saved);
 document.getElementById('open').addEventListener('click', () => openDashboard(tokenInput.value.trim()));
-function openDashboard(token) {
+async function openDashboard(token) {
   if (!token) { error.textContent = 'Token required'; return; }
   const url = '/api/dashboard?token=' + encodeURIComponent(token);
-  fetch(url).then((res) => {
-    if (!res.ok) throw new Error('Invalid token');
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error((await response.text()) || 'Invalid token');
     sessionStorage.setItem('dashboardToken', token);
     gate.style.display = 'none';
     frameWrap.style.display = 'block';
     frame.src = url;
-  }).catch((e) => {
+  } catch (e) {
     error.textContent = e.message;
-  });
+  }
 }
 </script>
 </body>

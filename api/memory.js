@@ -1,15 +1,15 @@
 import { getRuntimeMemory, saveRuntimeMemory } from '../services/memory.js';
+import {
+  auditEvent,
+  enforceRateLimit,
+  isDashboardAuthorized,
+  isDashboardConfigured,
+  rateLimitResponse,
+  safeEqual
+} from '../lib/security.js';
 
 const MAX_ENTRIES = 25;
 const MAX_ENTRY_LENGTH = 2000;
-
-function isAuthorized(req) {
-  const configuredToken = process.env.DASHBOARD_TOKEN;
-  if (!configuredToken) return true;
-
-  const providedToken = req.query?.token || req.headers?.['x-dashboard-token'];
-  return providedToken === configuredToken;
-}
 
 function publicMemory(memory) {
   return {
@@ -34,7 +34,7 @@ function parseBody(body) {
   return body;
 }
 
-function normalizeEntries(entries) {
+export function normalizeEntries(entries) {
   if (!Array.isArray(entries)) return null;
 
   return entries
@@ -44,10 +44,30 @@ function normalizeEntries(entries) {
     .slice(-MAX_ENTRIES);
 }
 
+function hasHeaderToken(req) {
+  const configuredToken = process.env.DASHBOARD_TOKEN;
+  if (!configuredToken) return false;
+  return safeEqual(req.headers?.['x-dashboard-token'], configuredToken);
+}
+
 export default async function handler(req, res) {
-  if (!isAuthorized(req)) {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+
+  if (!isDashboardConfigured()) {
+    return res.status(503).json({
+      success: false,
+      error: 'Dashboard disabled: DASHBOARD_TOKEN is not configured'
+    });
+  }
+
+  if (!isDashboardAuthorized(req)) {
     return res.status(401).json({ success: false, error: 'Unauthorized' });
   }
+
+  const rate = await enforceRateLimit(req, 'memory', 60, 60);
+  if (!rate.allowed) return rateLimitResponse(res, 60);
 
   if (req.method === 'GET') {
     try {
@@ -59,13 +79,19 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
+    if (!hasHeaderToken(req)) {
+      return res.status(401).json({ success: false, error: 'Missing dashboard token header' });
+    }
+
     const body = parseBody(req.body);
 
     if (body.clear === true) {
       try {
         const memory = await getRuntimeMemory();
         memory.dynamicMemory = [];
-        await saveRuntimeMemory(memory);
+        const saved = await saveRuntimeMemory(memory);
+        if (!saved) throw new Error('KV write failed');
+        await auditEvent('memory_clear', { source: 'dashboard' }, req);
         return res.status(200).json({ success: true, memory: publicMemory(memory) });
       } catch {
         return res.status(500).json({ success: false, error: 'Unable to clear memory' });
@@ -80,7 +106,9 @@ export default async function handler(req, res) {
     try {
       const memory = await getRuntimeMemory();
       memory.dynamicMemory = entries;
-      await saveRuntimeMemory(memory);
+      const saved = await saveRuntimeMemory(memory);
+      if (!saved) throw new Error('KV write failed');
+      await auditEvent('memory_save', { source: 'dashboard', entries: entries.length }, req);
       return res.status(200).json({ success: true, memory: publicMemory(memory) });
     } catch {
       return res.status(500).json({ success: false, error: 'Unable to save memory' });
@@ -90,3 +118,5 @@ export default async function handler(req, res) {
   res.setHeader('Allow', 'GET, POST');
   return res.status(405).json({ success: false, error: 'Method not allowed' });
 }
+
+export { publicMemory };

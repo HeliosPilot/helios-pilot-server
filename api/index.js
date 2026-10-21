@@ -3,6 +3,7 @@ import { initSentry, captureException } from '../services/sentry.js';
 import { sendTelegramMessage, answerTelegramCallback, setTelegramMessageReaction } from '../services/telegram.js';
 import { verifyGitHubSignature, addCommentToIssueOrPR, parseAndFetchGitHubUrl, fetchAppInstallationsAndRepos, getInstallationOctokitForRepo } from '../services/github.js';
 import { processSmartAIResponse } from '../services/ai.js';
+import { auditEvent, enforceRateLimit, isDashboardAuthorized, rateLimitResponse } from '../lib/security.js';
 
 // Initialize Sentry error tracking
 initSentry();
@@ -255,17 +256,29 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  const isDashboardRequest = req.method === "POST" && isDashboardAuthorized(req);
+
   if (req.method === "POST") {
     const githubEvent = req.headers?.["x-github-event"];
     if (githubEvent && !verifyGitHubSignature(req)) {
       return res.status(401).json({ error: "Invalid GitHub signature" });
     }
 
-    const telegramSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
-    if (telegramSecret) {
-      const providedSecret = req.headers?.["x-telegram-bot-api-secret-token"];
-      if (providedSecret !== telegramSecret) {
-        return res.status(401).json({ error: "Invalid Telegram webhook secret" });
+    if (isDashboardRequest) {
+      if (!envChatId) {
+        return res.status(503).json({ error: "TELEGRAM_CHAT_ID is not configured" });
+      }
+      const rate = await enforceRateLimit(req, "dashboard_command", 30, 60);
+      if (!rate.allowed) return rateLimitResponse(res, 60);
+    } else {
+      const telegramSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+      if (telegramSecret) {
+        const providedSecret = req.headers?.["x-telegram-bot-api-secret-token"];
+        if (providedSecret !== telegramSecret) {
+          return res.status(401).json({ error: "Invalid Telegram webhook secret" });
+        }
+      } else if (!githubEvent) {
+        console.warn("TELEGRAM_WEBHOOK_SECRET is not configured; webhook authenticity cannot be verified");
       }
     }
 
@@ -590,8 +603,12 @@ export default async function handler(req, res) {
       const senderChatId = payload.message.chat?.id?.toString();
       const messageId = payload.message.message_id;
 
-      const targetChatId = senderChatId || envChatId;
+      const targetChatId = isDashboardRequest ? envChatId : (senderChatId || envChatId);
       const cleanCmd = userTextLower.split('@')[0].split(' ')[0].trim();
+
+      if (isDashboardRequest) {
+        await auditEvent("dashboard_command", { command: cleanCmd }, req);
+      }
 
       // أ) الأوامر العامة المتاحة لجميع المستخدمين (/start و /help)
       if (cleanCmd.startsWith("/start") || cleanCmd.startsWith("/help")) {
@@ -610,7 +627,7 @@ export default async function handler(req, res) {
       }
 
       // ب) فحص الصلاحيات للأوامر الحساسة
-      if (envChatId && senderChatId && senderChatId !== envChatId.toString()) {
+      if (!isDashboardRequest && envChatId && senderChatId && senderChatId !== envChatId.toString()) {
         await sendTelegramMessage(senderChatId, "⛔ **عذراً، أنت لا تملك صلاحية استخدام هذا البوت.**");
         return res.status(200).json({ success: false });
       }

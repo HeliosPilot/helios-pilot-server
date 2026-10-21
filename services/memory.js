@@ -25,8 +25,10 @@ export async function getRuntimeMemory() {
 export async function saveRuntimeMemory(mem) {
   try {
     await kv.set("helios_runtime_memory", mem);
+    return true;
   } catch (err) {
     captureException(err, { context: "saveRuntimeMemory" });
+    return false;
   }
 }
 
@@ -43,8 +45,10 @@ export async function getTeamMemory(chatId) {
 export async function saveTeamMemory(chatId, mem) {
   try {
     await kv.set(`team_memory_${chatId}`, mem);
+    return true;
   } catch (err) {
     captureException(err, { context: "saveTeamMemory" });
+    return false;
   }
 }
 
