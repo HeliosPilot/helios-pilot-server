@@ -59,6 +59,7 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:18px 0
 
 <section class="section">
   <h2>Command Runner</h2>
+  <div id="commandMenu" class="terminal" style="min-height:auto;margin-bottom:12px"></div>
   <div class="command-wrap">
     <input id="dashCommand" class="command-input" type="text" placeholder="/status" />
     <button id="runCommand" class="command-btn">Run</button>
@@ -165,9 +166,19 @@ document.getElementById('dashCommand').addEventListener('keydown', (event) => {
     if (match) document.getElementById('dashCommand').value = match;
   }
 });
+const commandMenuItems = ['/status','/metrics','/clear','/review','/autofix','/createwiki','/analyze-perf','repos','/start'];
+function renderCommandMenu() {
+  const menu = document.getElementById('commandMenu');
+  menu.textContent = 'Select a command by number:\n' + commandMenuItems.map((cmd, i) => (i + 1) + ') ' + cmd).join('\n');
+}
+renderCommandMenu();
 document.getElementById('runCommand').addEventListener('click', async () => {
-  const cmd = document.getElementById('dashCommand').value.trim();
+  let cmd = document.getElementById('dashCommand').value.trim();
   if (!cmd) return;
+  if (/^\d+$/.test(cmd)) {
+    const index = Number(cmd) - 1;
+    if (index >= 0 && index < commandMenuItems.length) cmd = commandMenuItems[index];
+  }
   dashHistory.unshift(cmd);
   dashHistoryIndex = -1;
   const terminal = document.getElementById('dashTerminal');
