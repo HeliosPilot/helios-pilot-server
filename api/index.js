@@ -327,6 +327,10 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       message: "Bot handler reachable",
+      telegram: Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
+      github: Boolean(process.env.GITHUB_APP_ID && process.env.GITHUB_PRIVATE_KEY),
+      ai: Boolean(process.env.GROQ_API_KEY || process.env.OPENROUTER_API_KEY),
+      sentry: Boolean(process.env.SENTRY_DSN),
       timestamp: new Date().toISOString()
     });
   }

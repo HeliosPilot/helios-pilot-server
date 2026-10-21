@@ -52,6 +52,7 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:18px 0
   <div class="card"><div class="label">KV</div><div class="value" id="kv">--</div></div>
   <div class="card"><div class="label">Last Check</div><div class="value" id="last">--</div></div>
   <div class="card"><div class="label">Bot Test</div><div class="value" id="botTest">--</div></div>
+  <div class="card"><div class="label">Telegram Test</div><div class="value" id="telegramTest">--</div></div>
   <div class="card"><div class="label">API Latency</div><div class="value" id="latency">--</div></div>
   <div class="card"><div class="label">API Response</div><div class="value" id="apiRaw" style="font-size:.85rem;word-break:break-word">--</div></div>
 </div>
@@ -114,6 +115,8 @@ async function load() {
     document.getElementById('barLatency').style.width = Math.min(100, Math.round(ms / 10)) + '%';
     document.getElementById('botTest').textContent = td.success ? 'OK' : 'Error';
     document.getElementById('botTest').style.color = td.success ? '#22c55e' : '#ef4444';
+    document.getElementById('telegramTest').textContent = td.telegram ? 'OK' : 'Error';
+    document.getElementById('telegramTest').style.color = td.telegram ? '#22c55e' : '#ef4444';
     document.getElementById('apiRaw').textContent = JSON.stringify(td);
     document.getElementById('terminalOutput')?.replaceChildren?.();
     document.getElementById('dashTerminal').textContent = 'Health: ' + JSON.stringify(d.services) + '\\nBot: ' + JSON.stringify(td);
@@ -124,6 +127,7 @@ async function load() {
   } catch (e) {
     document.getElementById('last').textContent = 'Error';
     document.getElementById('botTest').textContent = 'Error';
+    document.getElementById('telegramTest').textContent = 'Error';
     document.getElementById('apiRaw').textContent = e.message;
     document.getElementById('dashTerminal').textContent = 'Error: ' + e.message;
     errorCount += 1;
