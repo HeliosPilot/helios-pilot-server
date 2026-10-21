@@ -3,8 +3,8 @@ import crypto from 'crypto';
 
 export function verifyGitHubSignature(req) {
   const signature = req.headers["x-hub-signature-256"];
-  const secret = process.env.GITHUB_WEBHOOK_SECRET;
-  if (!signature || !secret) return true;
+  const secret = process.env.GITHUB_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET;
+  if (!signature || !secret) return false;
 
   const hmac = crypto.createHmac("sha256", secret);
   const digest = `sha256=${hmac.update(JSON.stringify(req.body)).digest("hex")}`;

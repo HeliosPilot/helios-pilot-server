@@ -51,9 +51,9 @@ TELEGRAM_CHAT_ID=
 TELEGRAM_WEBHOOK_SECRET=
 GROQ_API_KEY=
 OPENROUTER_API_KEY=
-GITHUB_APP_ID=
-GITHUB_PRIVATE_KEY=
-GITHUB_WEBHOOK_SECRET=
+APP_ID=
+PRIVATE_KEY=
+WEBHOOK_SECRET=
 SENTRY_DSN=
 DASHBOARD_TOKEN=
 KV_REST_API_URL=
@@ -127,7 +127,7 @@ Dashboard capabilities:
 - Memory writes require the `x-dashboard-token` header.
 - Dashboard and dashboard-command requests are rate limited through Vercel KV.
 - Memory changes and dashboard commands are written to the `helios_audit_log` KV entry.
-- GitHub webhooks are verified with `GITHUB_WEBHOOK_SECRET`.
+- GitHub webhooks are verified with `WEBHOOK_SECRET` (or `GITHUB_WEBHOOK_SECRET`).
 - Set `TELEGRAM_WEBHOOK_SECRET` to verify Telegram webhook requests.
 
 ## Testing
