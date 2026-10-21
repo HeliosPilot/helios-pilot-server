@@ -3,35 +3,110 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HeliosPilot</title>
+<title>HeliosPilot | DevSecOps Bot</title>
+<meta name="description" content="HeliosPilot: Telegram + GitHub DevSecOps bot for Actions, PR review, security alerts, and Codebase RAG.">
 <style>
-body{font-family:Arial,sans-serif;max-width:900px;margin:40px auto;padding:0 20px;line-height:1.7;color:#222}
-h1{color:#0056b3} .card{border:1px solid #ddd;border-radius:8px;padding:16px;margin:12px 0}
-ul{padding-right:20px}
-code{background:#f3f3f3;padding:2px 6px;border-radius:4px}
+:root{
+  --bg:#0f172a;--panel:#111827;--card:#1f2937;--text:#f8fafc;--muted:#cbd5e1;--accent:#38bdf8;--accent2:#22c55e;--border:#334155;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:linear-gradient(180deg,#020617,#0f172a);color:var(--text)}
+.container{width:min(1120px,92%);margin:0 auto}
+nav{display:flex;justify-content:space-between;align-items:center;padding:20px 0}
+.brand{font-weight:800;font-size:1.2rem;color:var(--accent)}
+.links a{color:var(--muted);text-decoration:none;margin-inline-start:18px}
+.links a:hover{color:var(--text)}
+.hero{padding:72px 0 48px;display:grid;grid-template-columns:1.1fr .9fr;gap:32px;align-items:center}
+.hero h1{font-size:clamp(2rem,5vw,3.4rem);line-height:1.15;margin:0 0 16px}
+.hero p{color:var(--muted);font-size:1.1rem;margin:0 0 24px}
+.actions{display:flex;gap:12px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:700;border:1px solid transparent}
+.btn.primary{background:var(--accent);color:#00111f}
+.btn.secondary{background:transparent;color:var(--text);border-color:var(--border)}
+.panel{background:rgba(31,41,55,.7);border:1px solid var(--border);border-radius:18px;padding:24px;backdrop-filter:blur(8px)}
+.terminal{font-family:Consolas,monospace;font-size:.9rem;color:#93c5fd;white-space:pre-wrap}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;padding:24px 0 48px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px}
+.card h3{margin-top:0;color:var(--accent)}
+.card p{color:var(--muted)}
+.section{padding:40px 0}
+.section h2{font-size:1.8rem;margin-bottom:10px}
+.commands{display:flex;flex-wrap:wrap;gap:10px}
+.chip{background:#082f49;border:1px solid #0ea5e9;color:#7dd3fc;padding:8px 12px;border-radius:999px;font-family:Consolas,monospace}
+.status{display:inline-flex;align-items:center;gap:8px;color:var(--accent2);font-weight:700}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--accent2);box-shadow:0 0 12px var(--accent2)}
+footer{border-top:1px solid var(--border);padding:24px 0;color:var(--muted);font-size:.9rem}
+@media (max-width:820px){.hero{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.links{display:none}}
 </style>
 </head>
 <body>
-<h1>HeliosPilot</h1>
-<p>بوت Telegram + GitHub (DevSecOps) لمراقبة Actions، Issues، Pull Requests، والتنبيهات الأمنية، مع Codebase RAG وتصحيح تلقائي.</p>
-<div class="card">
-<h2>الدور</h2>
-<p>حارس HELIOS-NET: يحلل المستودعات، يراجع PRs، يكتشف الثغرات، ويرسل تنبيهات/修復ات через Telegram.</p>
+<div class="container">
+<nav>
+  <div class="brand">HeliosPilot</div>
+  <div class="links">
+    <a href="#features">الميزات</a>
+    <a href="#commands">الأوامر</a>
+    <a href="#api">API</a>
+    <a href="https://github.com/HeliosPilot/helios-pilot-server" target="_blank" rel="noreferrer">GitHub</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div>
+    <span class="status"><span class="dot"></span> نظام DevSecOps نشط</span>
+    <h1>حارس HELIOS-NET للـ GitHub و Telegram</h1>
+    <p>يراقب Actions، يراجع Pull Requests، يكتشف الثغرات، يرسل تنبيهات، ويقوم بتصحيح CI/CD تلقائياً مع Codebase RAG.</p>
+    <div class="actions">
+      <a class="btn primary" href="#commands">ابدأ</a>
+      <a class="btn secondary" href="/api?health=true">Health Check</a>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="terminal">POST /api
+{
+  "message": {
+    "chat": {"id": 12345},
+    "text": "/status"
+  }
+}
+
+→ {"success":true}</div>
+  </div>
+</section>
+
+<section id="features" class="section">
+  <h2>الميزات</h2>
+  <div class="grid">
+    <article class="card"><h3>GitHub Actions</h3><p>مراقبة Workflow Runs وCheck Runs مع إشعارات النجاح/الفشل.</p></article>
+    <article class="card"><h3>Security Review</h3><p>مراجعة PRs وتنبيهات Dependabot/Code Scanning مع مقترحات Patch.</p></article>
+    <article class="card"><h3>Codebase RAG</h3><p>إجابات مبنية على سياق المستودع (ملفات، imports، functions).</p></article>
+    <article class="card"><h3>Auto-Patch</h3><p>إنشاء PR تلقائي عند فشل CI/CD مع تحليل AI.</p></article>
+    <article class="card"><h3>Issue Triage</h3><p>تصنيف Issues وتوليد ردود تقنية.</p></article>
+    <article class="card"><h3>Memory</h3><p>ذاكرة ديناميكية للسياق (Vercel KV) لتحسين الردود.</p></article>
+  </div>
+</section>
+
+<section id="commands" class="section">
+  <h2>أوامر Telegram</h2>
+  <div class="commands">
+    <span class="chip">/start</span><span class="chip">/status</span><span class="chip">/clear</span>
+    <span class="chip">/metrics</span><span class="chip">/review</span><span class="chip">/autofix</span>
+    <span class="chip">/createwiki</span><span class="chip">/analyze-perf</span>
+  </div>
+</section>
+
+<section id="api" class="section">
+  <h2>API</h2>
+  <div class="panel">
+    <p><strong>Health:</strong> <code>GET /api?health=true</code></p>
+    <p><strong>Webhook:</strong> <code>POST /api</code> (Telegram updates / GitHub webhooks)</p>
+    <p><strong>Runtime:</strong> Vercel Serverless (Node.js ESM)</p>
+  </div>
+</section>
+
+<footer>
+  <div class="container">© 2026 HeliosPilot — HELIOS-NET DevSecOps Companion</div>
+</footer>
 </div>
-<div class="card">
-<h2>الميزات</h2>
-<ul>
-<li>مراقبة GitHub Actions وCheck Runs</li>
-<li>مراجعة أمنية للـ PRs</li>
-<li>تنبيهات Dependabot/Code Scanning</li>
-<li>Codebase RAG للأسئلة عن الكود</li>
-<li>Auto-Patch PRs upon CI failure</li>
-</ul>
-</div>
-<div class="card">
-<h2>أوامر Telegram</h2>
-<p><code>/start</code> <code>/status</code> <code>/clear</code> <code>/metrics</code> <code>/autofix</code> <code>/createwiki</code></p>
-</div>
-<p>Health: <code>/api?health=true</code></p>
 </body>
 </html>
