@@ -1,0 +1,65 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HeliosPilot Dashboard</title>
+<meta name="theme-color" content="#000000">
+<style>
+:root{--bg:#000;--panel:#0a0a0a;--text:#fff;--muted:#a1a1aa;--border:rgba(255,255,255,.12)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.container{width:min(1100px,92%);margin:0 auto;padding:32px 0}
+nav{display:flex;justify-content:space-between;align-items:center;padding:18px 0;border-bottom:1px solid var(--border)}
+.brand{font-weight:900}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:24px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:22px}
+.label{color:var(--muted);font-size:.9rem}
+.value{font-size:1.6rem;font-weight:800;margin-top:8px}
+.status{color:#22c55e}
+@media(max-width:760px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="container">
+<nav>
+  <div class="brand">HeliosPilot Dashboard</div>
+  <a href="/" style="color:var(--muted)">Home</a>
+</nav>
+<h1 style="margin-top:24px">Bot Usage Dashboard</h1>
+<p style="color:var(--muted);margin-top:8px">المشروع: HELIOS-NET | Uptime (session): <span id="uptime">0s</span></p>
+<div class="grid">
+  <div class="card"><div class="label">Telegram</div><div class="value" id="telegram">--</div></div>
+  <div class="card"><div class="label">GitHub</div><div class="value" id="github">--</div></div>
+  <div class="card"><div class="label">AI</div><div class="value" id="ai">--</div></div>
+  <div class="card"><div class="label">Sentry</div><div class="value" id="sentry">--</div></div>
+  <div class="card"><div class="label">KV</div><div class="value" id="kv">--</div></div>
+  <div class="card"><div class="label">Last Check</div><div class="value" id="last">--</div></div>
+</div>
+</div>
+<script>
+const start = Date.now();
+setInterval(() => {
+  const s = Math.floor((Date.now() - start) / 1000);
+  document.getElementById('uptime').textContent = s + 's';
+}, 1000);
+async function load() {
+  try {
+    const r = await fetch('/api?health=true');
+    const d = await r.json();
+    const s = d.services || {};
+    document.getElementById('telegram').textContent = s.telegram ? 'Online' : 'Offline';
+    document.getElementById('github').textContent = s.github ? 'Online' : 'Offline';
+    document.getElementById('ai').textContent = s.ai ? 'Online' : 'Offline';
+    document.getElementById('sentry').textContent = s.sentry ? 'Online' : 'Offline';
+    document.getElementById('kv').textContent = s.kv ? 'Online' : 'Offline';
+    document.getElementById('last').textContent = new Date().toLocaleTimeString();
+  } catch {
+    document.getElementById('last').textContent = 'Error';
+  }
+}
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>
