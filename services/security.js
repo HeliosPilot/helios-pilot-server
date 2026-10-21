@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { kv } from '@vercel/kv';
+import { kv } from './kv.js';
 
 const MAX_AUDIT_ENTRIES = 200;
 

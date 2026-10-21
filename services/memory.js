@@ -1,4 +1,4 @@
-import { kv } from '@vercel/kv';
+import { kv } from './kv.js';
 import { captureException } from './sentry.js';
 
 export const DEFAULT_MEMORY = {
