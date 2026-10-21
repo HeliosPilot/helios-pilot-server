@@ -14,6 +14,7 @@ const req = {
 
 const res = {
   statusCode: 200,
+  setHeader() { return this; },
   body: null,
   status(code) { this.statusCode = code; return this; },
   json(payload) { this.body = payload; console.log('INPUT:', text); console.log('STATUS:', this.statusCode); console.log('RESPONSE:', JSON.stringify(payload)); return this; }

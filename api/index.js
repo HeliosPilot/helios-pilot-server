@@ -246,6 +246,34 @@ async function handleTaskFix(chatId, owner, repo, taskType, filePath, memory) {
 export default async function handler(req, res) {
   const envChatId = process.env.TELEGRAM_CHAT_ID;
 
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+
+  if (!["GET", "POST"].includes(req.method)) {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  if (req.method === "POST") {
+    const githubEvent = req.headers?.["x-github-event"];
+    if (githubEvent && !verifyGitHubSignature(req)) {
+      return res.status(401).json({ error: "Invalid GitHub signature" });
+    }
+
+    const telegramSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+    if (telegramSecret) {
+      const providedSecret = req.headers?.["x-telegram-bot-api-secret-token"];
+      if (providedSecret !== telegramSecret) {
+        return res.status(401).json({ error: "Invalid Telegram webhook secret" });
+      }
+    }
+
+    if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
+      return res.status(400).json({ error: "Invalid JSON payload" });
+    }
+  }
+
   if (req.method === "GET" && req.query.cron === "true") {
     if (envChatId) {
       // تسليم التنبيهات المجمعة أولاً
@@ -755,6 +783,6 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error("Handler Error:", error);
     captureException(error, { context: "main_handler" });
-    return res.status(200).json({ error: error.message });
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
