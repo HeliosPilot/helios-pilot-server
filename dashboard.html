@@ -62,6 +62,7 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:18px 0
   <div class="command-wrap">
     <input id="dashCommand" class="command-input" type="text" placeholder="/status" />
     <button id="runCommand" class="command-btn">Run</button>
+    <button id="clearCommand" class="command-btn" style="background:transparent;color:#fff">Clear</button>
   </div>
   <div class="terminal" id="dashTerminal">Ready.</div>
 </section>
@@ -189,6 +190,9 @@ Error: ' + e.message;
   terminal.scrollTop = terminal.scrollHeight;
 });
 
+document.getElementById('clearCommand').addEventListener('click', () => {
+  document.getElementById('dashTerminal').textContent = 'Ready.';
+});
 document.getElementById('exportLogs').addEventListener('click', () => {
   const blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
