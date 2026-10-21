@@ -171,8 +171,7 @@ document.getElementById('runCommand').addEventListener('click', async () => {
   dashHistory.unshift(cmd);
   dashHistoryIndex = -1;
   const terminal = document.getElementById('dashTerminal');
-  terminal.textContent += '
-$ ' + cmd;
+  terminal.textContent += '\n$ ' + cmd;
   document.getElementById('dashCommand').value = '';
   try {
     const r = await fetch('/api', {
@@ -181,11 +180,9 @@ $ ' + cmd;
       body: JSON.stringify({ message: { chat: { id: 12345 }, text: cmd, message_id: Date.now() } })
     });
     const d = await r.json();
-    terminal.textContent += '
-' + JSON.stringify(d);
+    terminal.textContent += '\n' + JSON.stringify(d);
   } catch (e) {
-    terminal.textContent += '
-Error: ' + e.message;
+    terminal.textContent += '\nError: ' + e.message;
   }
   terminal.scrollTop = terminal.scrollHeight;
 });
