@@ -47,7 +47,11 @@ h1{font-size:clamp(2.6rem,7vw,5.4rem);line-height:.95;letter-spacing:-.05em;marg
 .terminal-dot:nth-child(2){background:#f59e0b}
 .terminal-dot:nth-child(3){background:#22c55e}
 .terminal-title{margin-inline-start:10px;color:var(--muted);font-family:var(--font-mono);font-size:.82rem}
-.terminal{font-family:var(--font-mono);font-size:.92rem;line-height:1.8;color:#e5e5e5;padding:20px;white-space:pre-wrap}
+.terminal{font-family:var(--font-mono);font-size:.92rem;line-height:1.8;color:#e5e5e5;padding:20px;white-space:pre-wrap;max-height:320px;overflow:auto}
+.terminal-input-wrap{display:flex;align-items:center;gap:10px;padding:0 20px 20px}
+.prompt{color:#22c55e;font-family:var(--font-mono);font-size:.92rem;white-space:nowrap}
+.terminal-input{flex:1;background:transparent;border:none;outline:none;color:#fff;font-family:var(--font-mono);font-size:.92rem;caret-color:#fff}
+.terminal-line{white-space:pre-wrap;word-break:break-word}
 .cursor{display:inline-block;width:8px;height:1.1em;background:#fff;margin-inline-start:2px;animation:blink 1s steps(2) infinite;vertical-align:text-bottom}
 @keyframes blink{50%{opacity:0}}
 @media (prefers-reduced-motion: reduce){.cursor{animation:none}}
@@ -108,17 +112,13 @@ footer{border-top:1px solid var(--border);padding:30px 0;color:var(--muted)}
   <div class="terminal-window">
     <div class="terminal-bar">
       <span class="terminal-dot"></span><span class="terminal-dot"></span><span class="terminal-dot"></span>
-      <span class="terminal-title">helios@bot:~</span>
+      <span class="terminal-title">helios@bot:~ (interactive)</span>
     </div>
-    <div class="terminal">POST /api
-{
-  "message": {
-    "chat": {"id": 12345},
-    "text": "/status"
-  }
-}
-
-→ {"success":true}<span class="cursor"></span></div>
+    <div class="terminal" id="terminalOutput">HeliosPilot terminal ready. Type a command and press Enter.</div>
+    <div class="terminal-input-wrap">
+      <span class="prompt">helios@bot:~$</span>
+      <input id="terminalInput" class="terminal-input" type="text" autocomplete="off" placeholder="/status" aria-label="Terminal command">
+    </div>
   </div>
 </section>
 
@@ -157,5 +157,40 @@ footer{border-top:1px solid var(--border);padding:30px 0;color:var(--muted)}
   <div class="container">© 2026 HeliosPilot — HELIOS-NET DevSecOps Companion</div>
 </footer>
 </div>
+<script>
+const terminalOutput = document.getElementById('terminalOutput');
+const terminalInput = document.getElementById('terminalInput');
+function printTerminal(text, className = '') {
+  const line = document.createElement('div');
+  line.className = 'terminal-line' + (className ? ' ' + className : '');
+  line.textContent = text;
+  terminalOutput.appendChild(line);
+  terminalOutput.scrollTop = terminalOutput.scrollHeight;
+}
+async function runTerminalCommand(command) {
+  const cmd = command.trim();
+  printTerminal('helios@bot:~$ ' + cmd);
+  if (!cmd) return;
+  try {
+    const response = await fetch('/api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: { chat: { id: 12345 }, text: cmd, message_id: Date.now() } })
+    });
+    const data = await response.json();
+    printTerminal(JSON.stringify(data, null, 2));
+  } catch (error) {
+    printTerminal('Error: ' + error.message);
+  }
+}
+terminalInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    const command = terminalInput.value;
+    terminalInput.value = '';
+    runTerminalCommand(command);
+  }
+});
+printTerminal('HeliosPilot terminal ready. Try /status');
+</script>
 </body>
 </html>
