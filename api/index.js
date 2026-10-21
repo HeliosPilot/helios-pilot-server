@@ -1,4 +1,4 @@
-import { kv } from '@vercel/kv';
+import { kv } from '../services/kv.js';
 import { initSentry, captureException } from '../services/sentry.js';
 import { sendTelegramMessage, answerTelegramCallback, setTelegramMessageReaction } from '../services/telegram.js';
 import { verifyGitHubSignature, addCommentToIssueOrPR, parseAndFetchGitHubUrl, fetchAppInstallationsAndRepos, getInstallationOctokitForRepo } from '../services/github.js';
