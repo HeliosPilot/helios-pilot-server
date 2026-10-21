@@ -15,7 +15,7 @@
     "node": ">=18.x"
   },
   "scripts": {
-    "check": "node --check api/index.js api/dashboard.js api/memory.js lib/security.js services/ai.js services/github.js services/memory.js",
+    "check": "node --check api/index.js api/dashboard.js api/memory.js services/security.js services/ai.js services/github.js services/memory.js",
     "test": "node --test tests/*.test.js"
   }
 }

@@ -5,7 +5,7 @@ import {
   isDashboardAuthorized,
   isDashboardConfigured,
   safeEqual
-} from '../lib/security.js';
+} from '../services/security.js';
 
 function withToken(token, callback) {
   const previous = process.env.DASHBOARD_TOKEN;

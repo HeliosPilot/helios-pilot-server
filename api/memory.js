@@ -6,7 +6,7 @@ import {
   isDashboardConfigured,
   rateLimitResponse,
   safeEqual
-} from '../lib/security.js';
+} from '../services/security.js';
 
 const MAX_ENTRIES = 25;
 const MAX_ENTRY_LENGTH = 2000;

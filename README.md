@@ -19,9 +19,8 @@ api/
   index.js          Main Telegram + GitHub webhook handler
   dashboard.js      Token-protected dashboard HTML endpoint
   memory.js         Token-protected memory read/write endpoint
-lib/
-  security.js       Token comparison, rate limiting, audit logging
 services/
+  security.js       Token comparison, rate limiting, audit logging
   ai.js             Groq / OpenRouter fallback
   github.js         GitHub App + REST integration
   memory.js         Vercel KV memory storage

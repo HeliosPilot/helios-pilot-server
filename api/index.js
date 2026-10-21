@@ -3,7 +3,7 @@ import { initSentry, captureException } from '../services/sentry.js';
 import { sendTelegramMessage, answerTelegramCallback, setTelegramMessageReaction } from '../services/telegram.js';
 import { verifyGitHubSignature, addCommentToIssueOrPR, parseAndFetchGitHubUrl, fetchAppInstallationsAndRepos, getInstallationOctokitForRepo } from '../services/github.js';
 import { processSmartAIResponse } from '../services/ai.js';
-import { auditEvent, enforceRateLimit, isDashboardAuthorized, rateLimitResponse } from '../lib/security.js';
+import { auditEvent, enforceRateLimit, isDashboardAuthorized, rateLimitResponse } from '../services/security.js';
 
 // Initialize Sentry error tracking
 initSentry();
