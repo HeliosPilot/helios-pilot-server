@@ -138,11 +138,41 @@ async function load() {
 load();
 setInterval(load, 30000);
 
+const dashHistory = [];
+let dashHistoryIndex = -1;
+const dashCommands = ['/start','/status','/clear','/metrics','/review','/autofix','/createwiki','/analyze-perf','repos'];
+document.getElementById('dashCommand').addEventListener('keydown', (event) => {
+  if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    if (dashHistory.length && dashHistoryIndex < dashHistory.length - 1) {
+      dashHistoryIndex += 1;
+      document.getElementById('dashCommand').value = dashHistory[dashHistoryIndex];
+    }
+  } else if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    if (dashHistoryIndex > 0) {
+      dashHistoryIndex -= 1;
+      document.getElementById('dashCommand').value = dashHistory[dashHistoryIndex];
+    } else {
+      dashHistoryIndex = -1;
+      document.getElementById('dashCommand').value = '';
+    }
+  } else if (event.key === 'Tab') {
+    event.preventDefault();
+    const value = document.getElementById('dashCommand').value.trim();
+    const match = dashCommands.find((command) => command.startsWith(value) && command !== value);
+    if (match) document.getElementById('dashCommand').value = match;
+  }
+});
 document.getElementById('runCommand').addEventListener('click', async () => {
   const cmd = document.getElementById('dashCommand').value.trim();
   if (!cmd) return;
+  dashHistory.unshift(cmd);
+  dashHistoryIndex = -1;
   const terminal = document.getElementById('dashTerminal');
-  terminal.textContent += '\\n$ ' + cmd;
+  terminal.textContent += '
+$ ' + cmd;
+  document.getElementById('dashCommand').value = '';
   try {
     const r = await fetch('/api', {
       method: 'POST',
@@ -150,9 +180,11 @@ document.getElementById('runCommand').addEventListener('click', async () => {
       body: JSON.stringify({ message: { chat: { id: 12345 }, text: cmd, message_id: Date.now() } })
     });
     const d = await r.json();
-    terminal.textContent += '\\n' + JSON.stringify(d);
+    terminal.textContent += '
+' + JSON.stringify(d);
   } catch (e) {
-    terminal.textContent += '\\nError: ' + e.message;
+    terminal.textContent += '
+Error: ' + e.message;
   }
   terminal.scrollTop = terminal.scrollHeight;
 });
