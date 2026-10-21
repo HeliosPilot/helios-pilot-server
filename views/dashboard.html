@@ -41,9 +41,13 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:16px 0
 .bar{height:10px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
 .bar>span{display:block;height:100%;background:linear-gradient(90deg,#fff,#71717a);border-radius:999px}
 .export-btn{margin-top:14px;padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:transparent;color:#fff;cursor:pointer}
+.memory-grid{display:grid;grid-template-columns:1.4fr .6fr;gap:18px;margin-top:8px}
+.memory-textarea{width:100%;min-height:180px;background:#050505;border:1px solid var(--border);border-radius:14px;padding:14px;color:#e5e5e5;font-family:var(--font-mono);font-size:.88rem;line-height:1.6;resize:vertical}
+.memory-actions{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+.memory-meta{color:#e5e5e5;font-family:var(--font-mono);font-size:.86rem;word-break:break-word;margin-bottom:14px}
 footer{margin-top:30px;padding-top:16px;border-top:1px solid var(--border);color:var(--muted);font-size:.84rem;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 @media(max-width:1100px){.grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:980px){.grid{grid-template-columns:repeat(2,1fr)}.section{grid-template-columns:1fr}}
+@media(max-width:980px){.grid{grid-template-columns:repeat(2,1fr)}.section{grid-template-columns:1fr}.memory-grid{grid-template-columns:1fr}}
 @media(max-width:620px){.grid{grid-template-columns:1fr}.command-wrap{grid-template-columns:1fr}.hero{grid-template-columns:1fr}}
 </style>
 </head>
@@ -100,6 +104,29 @@ footer{margin-top:30px;padding-top:16px;border-top:1px solid var(--border);color
       <div class="bar-row"><span>Errors</span><div class="bar"><span id="barErrors" style="width:0%"></span></div><span id="errorsValue">0</span></div>
     </div>
     <button id="exportLogs" class="export-btn">Export Logs (JSON)</button>
+  </div>
+</section>
+
+<div class="section-title">
+  <div><div class="eyebrow">Persistent state</div><h2>Memory</h2></div>
+  <div class="hint" id="memoryStatus">Loading...</div>
+</div>
+<section class="panel">
+  <div class="memory-grid">
+    <div>
+      <label class="label" for="memoryText">Dynamic memory (one entry per line)</label>
+      <textarea id="memoryText" class="memory-textarea" placeholder="Add a memory entry..."></textarea>
+      <div class="memory-actions">
+        <button id="saveMemory" class="command-btn">Save Memory</button>
+        <button id="clearMemory" class="command-btn secondary">Clear Memory</button>
+      </div>
+    </div>
+    <div>
+      <div class="label">Last context</div>
+      <div id="memoryContext" class="memory-meta">--</div>
+      <div class="label">Entries</div>
+      <div id="memoryCount" class="memory-meta">0 / 25</div>
+    </div>
   </div>
 </section>
 <footer><span>HELIOS-NET</span><span>HeliosPilot Dashboard</span></footer>
@@ -173,6 +200,53 @@ async function load() {
 }
 load();
 setInterval(load, 30000);
+
+const dashboardToken = new URLSearchParams(window.location.search).get('token') || sessionStorage.getItem('dashboardToken') || '';
+function memoryHeaders() {
+  return { 'Content-Type': 'application/json', 'x-dashboard-token': dashboardToken };
+}
+function renderMemory(memory) {
+  const entries = Array.isArray(memory.dynamicMemory) ? memory.dynamicMemory : [];
+  document.getElementById('memoryText').value = entries.join('\n');
+  document.getElementById('memoryCount').textContent = entries.length + ' / 25';
+  document.getElementById('memoryContext').textContent = memory.lastContextUrl || '--';
+}
+async function loadMemory() {
+  const status = document.getElementById('memoryStatus');
+  try {
+    const response = await fetch('/api/memory', { headers: { 'x-dashboard-token': dashboardToken } });
+    if (!response.ok) throw new Error('Unauthorized');
+    const data = await response.json();
+    renderMemory(data.memory || {});
+    status.textContent = 'Loaded';
+  } catch (error) {
+    status.textContent = 'Error: ' + error.message;
+  }
+}
+async function saveMemory(payload) {
+  const status = document.getElementById('memoryStatus');
+  try {
+    const response = await fetch('/api/memory', {
+      method: 'POST',
+      headers: memoryHeaders(),
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Save failed');
+    renderMemory(data.memory || {});
+    status.textContent = 'Saved';
+  } catch (error) {
+    status.textContent = 'Error: ' + error.message;
+  }
+}
+document.getElementById('saveMemory').addEventListener('click', () => {
+  const entries = document.getElementById('memoryText').value.split(/\n+/).map((entry) => entry.trim()).filter(Boolean);
+  saveMemory({ dynamicMemory: entries });
+});
+document.getElementById('clearMemory').addEventListener('click', () => {
+  if (confirm('Clear all dynamic memory entries?')) saveMemory({ clear: true });
+});
+loadMemory();
 
 document.getElementById('dashCommand').addEventListener('keydown', (event) => {
   if (event.key === 'ArrowUp') {
