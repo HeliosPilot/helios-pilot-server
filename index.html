@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,15 +18,15 @@ html{scroll-behavior:smooth;scroll-padding-top:90px}
 :focus-visible{outline:2px solid #fff;outline-offset:3px}
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto}}
 *{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth}
 body{font-family:var(--font-sans);background:var(--bg);color:var(--text);overflow-x:hidden}
 a{text-decoration:none;color:inherit}
 .container{width:min(1240px,92%);margin:0 auto}
 nav{position:fixed;inset:0 0 auto 0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:20px 4%;background:rgba(0,0,0,.72);backdrop-filter:blur(18px);border-bottom:1px solid var(--border)}
 .brand{display:flex;align-items:center;gap:12px;font-weight:900;letter-spacing:.02em}
 .mark{width:38px;height:38px;border-radius:12px;border:1px solid var(--border);display:grid;place-items:center;background:linear-gradient(135deg,#fff,#52525b);color:#000;font-weight:900}
-.links{display:flex;gap:24px;color:var(--muted);font-size:.92rem}
+.links{display:flex;gap:24px;color:var(--muted);font-size:.92rem;align-items:center}
 .links a:hover{color:#fff}
+.lang{padding:8px 12px;border:1px solid var(--border);border-radius:999px;color:#fff;background:rgba(255,255,255,.04)}
 .hero{min-height:100vh;display:grid;grid-template-columns:1.05fr .95fr;gap:52px;align-items:center;padding:120px 0 70px;position:relative}
 .hero::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 20% 20%,rgba(255,255,255,.10),transparent 30%),radial-gradient(circle at 80% 10%,rgba(255,255,255,.06),transparent 28%);pointer-events:none}
 h1{font-size:clamp(2.6rem,7vw,5.4rem);line-height:.95;letter-spacing:-.05em;margin:18px 0 20px}
@@ -38,8 +38,6 @@ h1{font-size:clamp(2.6rem,7vw,5.4rem);line-height:.95;letter-spacing:-.05em;marg
 .btn:hover{transform:translateY(-3px)}
 .btn.primary{background:#fff;color:#000;box-shadow:0 18px 48px rgba(255,255,255,.16)}
 .btn.secondary{background:transparent;color:#fff;border-color:var(--border)}
-.panel{background:linear-gradient(180deg,rgba(18,18,18,.96),rgba(8,8,8,.82));border:1px solid var(--border);border-radius:28px;padding:26px;box-shadow:var(--glow);position:relative;overflow:hidden}
-.panel::after{content:"";position:absolute;inset:0;border-radius:28px;background:radial-gradient(circle at top right,rgba(255,255,255,.08),transparent 35%);pointer-events:none}
 .terminal-window{background:#0a0a0a;border:1px solid rgba(255,255,255,.24);border-radius:22px;overflow:hidden;box-shadow:0 0 0 1px rgba(255,255,255,.08),0 30px 90px rgba(0,0,0,.75);position:relative;z-index:2}
 .terminal-bar{display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--border);background:rgba(255,255,255,.03)}
 .terminal-dot{width:12px;height:12px;border-radius:50%;background:#3f3f46}
@@ -52,9 +50,6 @@ h1{font-size:clamp(2.6rem,7vw,5.4rem);line-height:.95;letter-spacing:-.05em;marg
 .prompt{color:#22c55e;font-family:var(--font-mono);font-size:.92rem;white-space:nowrap}
 .terminal-input{flex:1;background:transparent;border:none;outline:none;color:#fff;font-family:var(--font-mono);font-size:.92rem;caret-color:#fff}
 .terminal-line{white-space:pre-wrap;word-break:break-word}
-.cursor{display:inline-block;width:8px;height:1.1em;background:#fff;margin-inline-start:2px;animation:blink 1s steps(2) infinite;vertical-align:text-bottom}
-@keyframes blink{50%{opacity:0}}
-@media (prefers-reduced-motion: reduce){.cursor{animation:none}}
 .kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
 .kpi div{background:rgba(255,255,255,.035);border:1px solid var(--border);border-radius:16px;padding:14px}
 .kpi strong{display:block;font-size:1.35rem}
@@ -87,9 +82,10 @@ footer{border-top:1px solid var(--border);padding:30px 0;color:var(--muted)}
 <nav>
   <div class="brand"><span class="mark">H</span>HeliosPilot</div>
   <div class="links">
-    <a href="#features">الميزات</a>
-    <a href="#commands">الأوامر</a>
+    <a href="#features">Features</a>
+    <a href="#commands">Commands</a>
     <a href="#api">API</a>
+    <a href="/ar/">العربية</a>
     <a href="https://github.com/HeliosPilot/helios-pilot-server" target="_blank" rel="noreferrer">GitHub</a>
   </div>
 </nav>
@@ -97,15 +93,15 @@ footer{border-top:1px solid var(--border);padding:30px 0;color:var(--muted)}
 <section class="hero">
   <div>
     <span class="eyebrow"><span class="dot"></span> WORLD-CLASS DEVSECOPS BOT</span>
-    <h1>حارس HELIOS-NET<br>للـ GitHub و Telegram</h1>
-    <p>منصة DevSecOps premium: مراقبة Actions، مراجعة Pull Requests، كشف الثغرات، إشعارات فورية، تصحيح CI/CD تلقائي، وCodebase RAG مدعوم بالذاكرة.</p>
+    <h1>HELIOS-NET Guardian<br>for GitHub & Telegram</h1>
+    <p>Premium DevSecOps platform: monitor Actions, review Pull Requests, detect vulnerabilities, send instant alerts, auto-fix CI/CD, and answer code questions with Codebase RAG.</p>
     <div class="actions">
-      <a class="btn primary" href="#commands">ابدأ الآن</a>
+      <a class="btn primary" href="#commands">Get Started</a>
       <a class="btn secondary" href="/api?health=true">Health Check</a>
     </div>
     <div class="kpi">
-      <div><strong>24/7</strong><span>مراقبة مستمرة</span></div>
-      <div><strong>RAG</strong><span>سياق الكود</span></div>
+      <div><strong>24/7</strong><span>Monitoring</span></div>
+      <div><strong>RAG</strong><span>Code Context</span></div>
       <div><strong>Auto</strong><span>Patch PRs</span></div>
     </div>
   </div>
@@ -123,21 +119,21 @@ footer{border-top:1px solid var(--border);padding:30px 0;color:var(--muted)}
 </section>
 
 <section id="features" class="section">
-  <h2>الميزات</h2>
-  <p class="lead">تصميم أسود premium مع واجهة نظيفة، بطاقات glass، وتجربة responsive.</p>
+  <h2>Features</h2>
+  <p class="lead">A lightweight, fast DevSecOps platform built on Vercel Serverless, connecting GitHub and Telegram with AI analysis.</p>
   <div class="grid">
-    <article class="card"><div class="icon">⚙️</div><h3>GitHub Actions</h3><p>مراقبة Workflow Runs وCheck Runs مع إشعارات نجاح/فشل.</p></article>
-    <article class="card"><div class="icon">🛡️</div><h3>Security Review</h3><p>مراجعة PRs وتنبيهات Dependabot/Code Scanning مع مقترحات Patch.</p></article>
-    <article class="card"><div class="icon">🧠</div><h3>Codebase RAG</h3><p>إجابات مبنية على سياق المستودع: ملفات، imports، functions.</p></article>
-    <article class="card"><div class="icon">🛠️</div><h3>Auto-Patch</h3><p>إنشاء PR تلقائي عند فشل CI/CD مع تحليل AI.</p></article>
-    <article class="card"><div class="icon">📌</div><h3>Issue Triage</h3><p>تصنيف Issues وتوليد ردود تقنية.</p></article>
-    <article class="card"><div class="icon">🧩</div><h3>Memory</h3><p>ذاكرة ديناميكية (Vercel KV) لتحسين السياق والردود.</p></article>
+    <article class="card"><div class="icon">⚙️</div><h3>GitHub Actions</h3><p>Monitor Workflow Runs and Check Runs with success/failure notifications.</p></article>
+    <article class="card"><div class="icon">🛡️</div><h3>Security Review</h3><p>Review PRs and handle Dependabot/Code Scanning alerts with patch suggestions.</p></article>
+    <article class="card"><div class="icon">🧠</div><h3>Codebase RAG</h3><p>Answers based on repository context: files, imports, and functions.</p></article>
+    <article class="card"><div class="icon">🛠️</div><h3>Auto-Patch</h3><p>Create automatic PRs on CI/CD failure with AI analysis.</p></article>
+    <article class="card"><div class="icon">📌</div><h3>Issue Triage</h3><p>Classify issues and generate technical replies.</p></article>
+    <article class="card"><div class="icon">🧩</div><h3>Memory</h3><p>Dynamic memory (Vercel KV) to improve context and responses.</p></article>
   </div>
 </section>
 
 <section id="commands" class="section">
-  <h2>أوامر Telegram</h2>
-  <p class="lead">أوامر مباشرة للتفاعل مع الحارس.</p>
+  <h2>Telegram Commands</h2>
+  <p class="lead">Direct commands to interact with the guardian.</p>
   <div class="commands">
     <span class="chip">/start</span><span class="chip">/status</span><span class="chip">/clear</span>
     <span class="chip">/metrics</span><span class="chip">/review</span><span class="chip">/autofix</span>
@@ -148,8 +144,8 @@ footer{border-top:1px solid var(--border);padding:30px 0;color:var(--muted)}
 <section id="api" class="section">
   <h2>API</h2>
   <div class="api">
-    <div class="panel"><p><strong>Health:</strong> <code>GET /api?health=true</code></p><p>فحص حالة الخدمات (Telegram, GitHub, AI, Sentry, KV).</p></div>
-    <div class="panel"><p><strong>Webhook:</strong> <code>POST /api</code></p><p>استقبال تحديثات Telegram وGitHub Webhooks.</p></div>
+    <div class="panel"><p><strong>Health:</strong> <code>GET /api?health=true</code></p><p>Check service status (Telegram, GitHub, AI, Sentry, KV).</p></div>
+    <div class="panel"><p><strong>Webhook:</strong> <code>POST /api</code></p><p>Receive Telegram updates and GitHub webhooks.</p></div>
   </div>
 </section>
 
@@ -157,12 +153,16 @@ footer{border-top:1px solid var(--border);padding:30px 0;color:var(--muted)}
   <div class="container">© 2026 HeliosPilot — HELIOS-NET DevSecOps Companion</div>
 </footer>
 </div>
+
 <script>
 const terminalOutput = document.getElementById('terminalOutput');
 const terminalInput = document.getElementById('terminalInput');
-function printTerminal(text, className = '') {
+const terminalHistory = [];
+let historyIndex = -1;
+const terminalCommands = ['/start','/status','/clear','/metrics','/review','/autofix','/createwiki','/analyze-perf','repos'];
+function printTerminal(text) {
   const line = document.createElement('div');
-  line.className = 'terminal-line' + (className ? ' ' + className : '');
+  line.className = 'terminal-line';
   line.textContent = text;
   terminalOutput.appendChild(line);
   terminalOutput.scrollTop = terminalOutput.scrollHeight;
@@ -183,9 +183,6 @@ async function runTerminalCommand(command) {
     printTerminal('Error: ' + error.message);
   }
 }
-const terminalHistory = [];
-let historyIndex = -1;
-const terminalCommands = ['/start','/status','/clear','/metrics','/review','/autofix','/createwiki','/analyze-perf','المستودعات'];
 terminalInput.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {
     const command = terminalInput.value;
