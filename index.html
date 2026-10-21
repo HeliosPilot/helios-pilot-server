@@ -3,62 +3,66 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HeliosPilot — DevSecOps Bot</title>
-<meta name="description" content="HeliosPilot: Telegram + GitHub DevSecOps bot for Actions, PR review, security alerts, and Codebase RAG.">
+<title>HeliosPilot — World-Class DevSecOps Bot</title>
+<meta name="description" content="HeliosPilot: premium Telegram + GitHub DevSecOps bot for Actions, PR review, security alerts, and Codebase RAG.">
 <style>
 :root{
-  --bg:#050816;--bg2:#0b1220;--card:rgba(15,23,42,.72);--text:#f8fafc;--muted:#94a3b8;--accent:#22d3ee;--accent2:#34d399;--border:rgba(148,163,184,.18);--shadow:0 24px 70px rgba(0,0,0,.45);
+  --bg:#000000;--bg-soft:#050505;--panel:rgba(12,12,12,.82);--text:#ffffff;--muted:#a1a1aa;--accent:#ffffff;--accent2:#71717a;--border:rgba(255,255,255,.12);--glow:0 0 80px rgba(255,255,255,.08);
 }
-*{box-sizing:border-box}
+*{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:radial-gradient(circle at top left,rgba(34,211,238,.16),transparent 32%),radial-gradient(circle at bottom right,rgba(52,211,153,.12),transparent 30%),var(--bg);color:var(--text);overflow-x:hidden}
-a{color:inherit;text-decoration:none}
-.container{width:min(1180px,92%);margin:0 auto}
-nav{position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;padding:18px 0;backdrop-filter:blur(14px);background:rgba(5,8,22,.72);border-bottom:1px solid var(--border)}
-.brand{display:flex;align-items:center;gap:10px;font-weight:900;font-size:1.15rem}
-.logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;color:#001018;font-weight:900}
-.links{display:flex;gap:22px;color:var(--muted);font-size:.95rem}
-.links a:hover{color:var(--text)}
-.hero{min-height:88vh;display:grid;grid-template-columns:1.05fr .95fr;gap:42px;align-items:center;padding:56px 0}
-.eyebrow{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;border:1px solid rgba(34,211,238,.28);background:rgba(34,211,238,.08);color:var(--accent);font-weight:700;font-size:.9rem}
-.dot{width:9px;height:9px;border-radius:50%;background:var(--accent2);box-shadow:0 0 16px var(--accent2)}
-h1{font-size:clamp(2.3rem,6vw,4.6rem);line-height:1.05;margin:18px 0 16px;letter-spacing:-.03em}
-.hero p{color:var(--muted);font-size:1.12rem;max-width:640px;margin:0 0 28px}
+body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+a{text-decoration:none;color:inherit}
+.container{width:min(1240px,92%);margin:0 auto}
+nav{position:fixed;inset:0 0 auto 0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:20px 4%;background:rgba(0,0,0,.72);backdrop-filter:blur(18px);border-bottom:1px solid var(--border)}
+.brand{display:flex;align-items:center;gap:12px;font-weight:900;letter-spacing:.02em}
+.mark{width:38px;height:38px;border-radius:12px;border:1px solid var(--border);display:grid;place-items:center;background:linear-gradient(135deg,#fff,#52525b);color:#000;font-weight:900}
+.links{display:flex;gap:24px;color:var(--muted);font-size:.92rem}
+.links a:hover{color:#fff}
+.hero{min-height:100vh;display:grid;grid-template-columns:1.05fr .95fr;gap:52px;align-items:center;padding:120px 0 70px;position:relative}
+.hero::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 20% 20%,rgba(255,255,255,.10),transparent 30%),radial-gradient(circle at 80% 10%,rgba(255,255,255,.06),transparent 28%);pointer-events:none}
+h1{font-size:clamp(2.6rem,7vw,5.4rem);line-height:.95;letter-spacing:-.05em;margin:18px 0 20px}
+.hero p{color:var(--muted);font-size:1.14rem;max-width:680px;line-height:1.8;margin:0 0 30px}
+.eyebrow{display:inline-flex;align-items:center;gap:10px;padding:9px 16px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:#d4d4d8;font-weight:700;font-size:.88rem}
+.dot{width:9px;height:9px;border-radius:50%;background:#fff;box-shadow:0 0 18px #fff}
 .actions{display:flex;gap:14px;flex-wrap:wrap}
-.btn{display:inline-flex;align-items:center;justify-content:center;padding:13px 22px;border-radius:12px;font-weight:800;border:1px solid transparent;transition:.2s transform,.2s box-shadow}
-.btn:hover{transform:translateY(-2px)}
-.btn.primary{background:linear-gradient(135deg,var(--accent),#0ea5e9);color:#001018;box-shadow:0 14px 36px rgba(34,211,238,.28)}
-.btn.secondary{background:rgba(255,255,255,.04);color:var(--text);border-color:var(--border)}
-.panel{background:linear-gradient(180deg,rgba(15,23,42,.9),rgba(15,23,42,.62));border:1px solid var(--border);border-radius:24px;padding:24px;box-shadow:var(--shadow);position:relative;overflow:hidden}
-.panel::before{content:"";position:absolute;inset:-1px;border-radius:24px;padding:1px;background:linear-gradient(135deg,rgba(34,211,238,.35),transparent,rgba(52,211,153,.25));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
-.terminal{font-family:Consolas,monospace;font-size:.9rem;line-height:1.7;color:#a5f3fc;white-space:pre-wrap}
-.kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}
-.kpi div{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:14px;padding:12px}
-.kpi strong{display:block;font-size:1.25rem;color:var(--accent)}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:14px 24px;border-radius:14px;font-weight:900;border:1px solid transparent;transition:.25s transform,.25s box-shadow,.25s background}
+.btn:hover{transform:translateY(-3px)}
+.btn.primary{background:#fff;color:#000;box-shadow:0 18px 48px rgba(255,255,255,.16)}
+.btn.secondary{background:transparent;color:#fff;border-color:var(--border)}
+.panel{background:linear-gradient(180deg,rgba(18,18,18,.96),rgba(8,8,8,.82));border:1px solid var(--border);border-radius:28px;padding:26px;box-shadow:var(--glow);position:relative;overflow:hidden}
+.panel::after{content:"";position:absolute;inset:0;border-radius:28px;background:radial-gradient(circle at top right,rgba(255,255,255,.08),transparent 35%);pointer-events:none}
+.terminal{font-family:Consolas,monospace;font-size:.92rem;line-height:1.8;color:#e5e5e5;white-space:pre-wrap}
+.kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
+.kpi div{background:rgba(255,255,255,.035);border:1px solid var(--border);border-radius:16px;padding:14px}
+.kpi strong{display:block;font-size:1.35rem}
 .kpi span{color:var(--muted);font-size:.82rem}
-.section{padding:72px 0}
-.section h2{font-size:clamp(1.7rem,4vw,2.5rem);margin:0 0 12px;letter-spacing:-.02em}
-.section .lead{color:var(--muted);max-width:760px;margin:0 0 34px}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
-.card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:24px;transition:.25s transform,.25s border-color,.25s box-shadow;position:relative;overflow:hidden}
-.card:hover{transform:translateY(-6px);border-color:rgba(34,211,238,.35);box-shadow:0 20px 50px rgba(0,0,0,.35)}
-.icon{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,rgba(34,211,238,.18),rgba(52,211,153,.12));color:var(--accent);font-size:1.35rem;margin-bottom:14px}
-.card h3{margin:0 0 8px}
-.card p{margin:0;color:var(--muted)}
-.commands{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
-.chip{padding:9px 13px;border-radius:999px;border:1px solid rgba(34,211,238,.22);background:rgba(34,211,238,.08);color:#a5f3fc;font-family:Consolas,monospace;font-size:.9rem}
-.api{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+.section{padding:90px 0}
+.section h2{font-size:clamp(1.8rem,4vw,2.8rem);margin:0 0 12px;letter-spacing:-.03em}
+.lead{color:var(--muted);max-width:780px;margin:0 0 38px;font-size:1.05rem}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.card{background:linear-gradient(180deg,rgba(15,15,15,.95),rgba(5,5,5,.88));border:1px solid var(--border);border-radius:24px;padding:28px;transition:.3s transform,.3s border-color,.3s box-shadow;position:relative;overflow:hidden}
+.card::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at top left,rgba(255,255,255,.06),transparent 40%);opacity:0;transition:.3s}
+.card:hover{transform:translateY(-8px);border-color:rgba(255,255,255,.28);box-shadow:0 28px 70px rgba(0,0,0,.55)}
+.card:hover::before{opacity:1}
+.icon{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;background:rgba(255,255,255,.06);border:1px solid var(--border);font-size:1.45rem;margin-bottom:18px}
+.card h3{margin:0 0 8px;font-size:1.12rem}
+.card p{margin:0;color:var(--muted);line-height:1.7}
+.commands{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+.chip{padding:10px 14px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:#e5e5e5;font-family:Consolas,monospace;font-size:.9rem;transition:.2s background,.2s transform}
+.chip:hover{background:rgba(255,255,255,.1);transform:translateY(-2px)}
+.api{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
 .api .panel p{margin:8px 0;color:var(--muted)}
-.api code{color:var(--accent);background:rgba(34,211,238,.08);padding:4px 8px;border-radius:8px}
-footer{border-top:1px solid var(--border);padding:28px 0;color:var(--muted)}
-@media (max-width:900px){.hero{grid-template-columns:1fr;min-height:auto}.grid{grid-template-columns:1fr}.api{grid-template-columns:1fr}.links{gap:12px;font-size:.85rem}}
+.api code{color:#fff;background:rgba(255,255,255,.08);padding:5px 9px;border-radius:9px}
+footer{border-top:1px solid var(--border);padding:30px 0;color:var(--muted)}
+@media (max-width:920px){.hero{grid-template-columns:1fr;min-height:auto}.grid{grid-template-columns:1fr}.api{grid-template-columns:1fr}.links{gap:14px;font-size:.84rem}}
 @media (max-width:560px){.links{display:none}.actions{flex-direction:column}.btn{width:100%}}
 </style>
 </head>
 <body>
 <div class="container">
 <nav>
-  <div class="brand"><span class="logo">H</span>HeliosPilot</div>
+  <div class="brand"><span class="mark">H</span>HeliosPilot</div>
   <div class="links">
     <a href="#features">الميزات</a>
     <a href="#commands">الأوامر</a>
@@ -69,15 +73,15 @@ footer{border-top:1px solid var(--border);padding:28px 0;color:var(--muted)}
 
 <section class="hero">
   <div>
-    <span class="eyebrow"><span class="dot"></span> DevSecOps Bot نشط</span>
-    <h1>حارس HELIOS-NET للـ GitHub و Telegram</h1>
-    <p>يراقب Actions، يراجع Pull Requests، يكتشف الثغرات، يرسل تنبيهات، ويقوم بتصحيح CI/CD تلقائياً مع Codebase RAG وذاكرة ديناميكية.</p>
+    <span class="eyebrow"><span class="dot"></span> WORLD-CLASS DEVSECOPS BOT</span>
+    <h1>حارس HELIOS-NET<br>للـ GitHub و Telegram</h1>
+    <p>منصة DevSecOps premium: مراقبة Actions، مراجعة Pull Requests، كشف الثغرات، إشعارات فورية، تصحيح CI/CD تلقائي، وCodebase RAG مدعوم بالذاكرة.</p>
     <div class="actions">
       <a class="btn primary" href="#commands">ابدأ الآن</a>
       <a class="btn secondary" href="/api?health=true">Health Check</a>
     </div>
     <div class="kpi">
-      <div><strong>24/7</strong><span>مراقبة</span></div>
+      <div><strong>24/7</strong><span>مراقبة مستمرة</span></div>
       <div><strong>RAG</strong><span>سياق الكود</span></div>
       <div><strong>Auto</strong><span>Patch PRs</span></div>
     </div>
@@ -97,7 +101,7 @@ footer{border-top:1px solid var(--border);padding:28px 0;color:var(--muted)}
 
 <section id="features" class="section">
   <h2>الميزات</h2>
-  <p class="lead">منصة DevSecOps خفيفة وسريعة مبنية على Vercel Serverless، تربط GitHub وTelegram بتحليل AI.</p>
+  <p class="lead">تصميم أسود premium مع واجهة نظيفة، بطاقات glass، وتجربة responsive.</p>
   <div class="grid">
     <article class="card"><div class="icon">⚙️</div><h3>GitHub Actions</h3><p>مراقبة Workflow Runs وCheck Runs مع إشعارات نجاح/فشل.</p></article>
     <article class="card"><div class="icon">🛡️</div><h3>Security Review</h3><p>مراجعة PRs وتنبيهات Dependabot/Code Scanning مع مقترحات Patch.</p></article>
