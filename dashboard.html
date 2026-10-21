@@ -35,6 +35,8 @@ nav{display:flex;justify-content:space-between;align-items:center;padding:18px 0
   <div class="card"><div class="label">Sentry</div><div class="value" id="sentry">--</div></div>
   <div class="card"><div class="label">KV</div><div class="value" id="kv">--</div></div>
   <div class="card"><div class="label">Last Check</div><div class="value" id="last">--</div></div>
+  <div class="card"><div class="label">Bot Test</div><div class="value" id="botTest">--</div></div>
+  <div class="card"><div class="label">API Response</div><div class="value" id="apiRaw" style="font-size:.85rem;word-break:break-word">--</div></div>
 </div>
 </div>
 <script>
@@ -54,6 +56,15 @@ async function load() {
     document.getElementById('sentry').textContent = s.sentry ? 'Online' : 'Offline';
     document.getElementById('kv').textContent = s.kv ? 'Online' : 'Offline';
     document.getElementById('last').textContent = new Date().toLocaleTimeString();
+    try {
+      const tr = await fetch('/api', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message:{ chat:{id:12345}, text:'/status', message_id:Date.now() } }) });
+      const td = await tr.json();
+      document.getElementById('botTest').textContent = td.success ? 'OK' : 'Error';
+      document.getElementById('apiRaw').textContent = JSON.stringify(td);
+    } catch (e) {
+      document.getElementById('botTest').textContent = 'Error';
+      document.getElementById('apiRaw').textContent = e.message;
+    }
   } catch {
     document.getElementById('last').textContent = 'Error';
   }
