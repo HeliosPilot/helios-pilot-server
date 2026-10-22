@@ -39,9 +39,9 @@ test('dashboard auth accepts the configured header token', () => {
   });
 });
 
-test('dashboard auth accepts the configured query token', () => {
+test('dashboard auth rejects the query token', () => {
   withToken('secret-token', () => {
-    assert.strictEqual(isDashboardAuthorized({ headers: {}, query: { token: 'secret-token' } }), true);
+    assert.strictEqual(isDashboardAuthorized({ headers: {}, query: { token: 'secret-token' } }), false);
   });
 });
 
@@ -59,4 +59,11 @@ test('safeEqual compares values without length leaks', () => {
 
 test('getClientIp reads the first forwarded address', () => {
   assert.strictEqual(getClientIp({ headers: { 'x-forwarded-for': '203.0.113.1, 10.0.0.1' } }), '203.0.113.1');
+});
+
+test('getClientIp prefers the trusted real IP header', () => {
+  assert.strictEqual(
+    getClientIp({ headers: { 'x-real-ip': '198.51.100.7', 'x-forwarded-for': '203.0.113.1' } }),
+    '198.51.100.7'
+  );
 });

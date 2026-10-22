@@ -1,6 +1,6 @@
-import { kv } from '../services/kv';
 import {
   enforceRateLimit,
+  getAuditEvents,
   isDashboardAuthorized,
   isDashboardConfigured,
   rateLimitResponse
@@ -28,8 +28,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const stored = await kv.get('helios_audit_log');
-    const events = Array.isArray(stored) ? stored.slice(-50).reverse() : [];
+    const events = await getAuditEvents(50);
     return res.status(200).json({ success: true, events });
   } catch {
     return res.status(500).json({ success: false, error: 'Unable to load audit log' });

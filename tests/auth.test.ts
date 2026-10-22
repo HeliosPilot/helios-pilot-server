@@ -18,3 +18,8 @@ test('isAdmin returns false for unauthorized user', () => {
     const memory = { admins: [] };
     assert.strictEqual(isAdmin('99999', memory), false);
 });
+
+test('isAdmin fails closed when the chat id is missing', () => {
+    process.env.TELEGRAM_CHAT_ID = '12345';
+    assert.strictEqual(isAdmin(undefined, { admins: [] }), false);
+});

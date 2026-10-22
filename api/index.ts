@@ -1,9 +1,9 @@
 import { kv } from '../services/kv';
 import { initSentry, captureException } from '../services/sentry';
 import { sendTelegramMessage, answerTelegramCallback, setTelegramMessageReaction } from '../services/telegram';
-import { verifyGitHubSignature, addCommentToIssueOrPR, parseAndFetchGitHubUrl, fetchAppInstallationsAndRepos, getInstallationOctokitForRepo } from '../services/github';
+import { verifyGitHubSignature, addCommentToIssueOrPR, parseAndFetchGitHubUrl, fetchAppInstallationsAndRepos, getInstallationOctokitForRepo, redactSecrets } from '../services/github';
 import { processSmartAIResponse } from '../services/ai';
-import { auditEvent, enforceRateLimit, isDashboardAuthorized, rateLimitResponse } from '../services/security';
+import { auditEvent, enforceRateLimit, isDashboardAuthorized, rateLimitResponse, safeEqual } from '../services/security';
 import { recordHealthSnapshot } from '../services/metrics';
 import { sendUnifiedNotification } from '../services/notifier';
 import type { ApiRequest, ApiResponse } from '../types/http';
@@ -11,6 +11,55 @@ import type { HeliosMemory } from '../types/memory';
 
 // Initialize Sentry error tracking
 initSentry();
+
+export const config = { api: { bodyParser: false } };
+
+const MAX_BODY_BYTES = 1_000_000;
+
+async function readRequestBody(req: ApiRequest): Promise<string> {
+  if (Buffer.isBuffer(req.body)) return req.body.toString('utf8');
+  if (typeof req.body === 'string') return req.body;
+  if (Buffer.isBuffer(req.rawBody)) return req.rawBody.toString('utf8');
+  if (typeof req.rawBody === 'string') return req.rawBody;
+
+  if (typeof req.on === 'function' && req.readableEnded !== true) {
+    return await new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      let total = 0;
+      req.on('data', (chunk) => {
+        total += chunk.length;
+        if (total > MAX_BODY_BYTES) {
+          reject(new Error('Request body too large'));
+          return;
+        }
+        chunks.push(Buffer.from(chunk));
+      });
+      req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+      req.on('error', reject);
+    });
+  }
+
+  if (req.body && typeof req.body === 'object') return JSON.stringify(req.body);
+  throw new Error('Request body is unavailable');
+}
+
+function isCronAuthorized(req: ApiRequest): boolean {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return false;
+  const header = req.headers?.authorization || req.headers?.Authorization || '';
+  return safeEqual(header, `Bearer ${secret}`);
+}
+
+async function isDuplicateDelivery(deliveryId: string): Promise<boolean> {
+  if (!deliveryId) return false;
+  const key = `github_delivery_${deliveryId}`;
+  try {
+    const stored = await kv.set(key, 1, { nx: true, ex: 600 });
+    return stored === null;
+  } catch {
+    return false;
+  }
+}
 
 const DEFAULT_MEMORY: HeliosMemory = {
   creator: "Ismail-Benali (H3l!0s_T3k)",
@@ -43,7 +92,8 @@ async function saveTeamMemory(chatId: string | number, mem: HeliosMemory): Promi
   }
 }
 
-export function isAdmin(chatId: string | number, memory: { admins?: string[] }): boolean {
+export function isAdmin(chatId?: string | number | null, memory: { admins?: string[] } = {}): boolean {
+  if (chatId === undefined || chatId === null || chatId === '') return false;
   return Boolean(memory.admins?.includes(chatId.toString())) || chatId.toString() === process.env.TELEGRAM_CHAT_ID;
 }
 
@@ -51,10 +101,10 @@ export function isAdmin(chatId: string | number, memory: { admins?: string[] }):
 async function getRuntimeMemory(): Promise<HeliosMemory> {
   try {
     const mem = (await kv.get("helios_runtime_memory")) as HeliosMemory | null;
-    return mem ? mem : DEFAULT_MEMORY;
+    return mem ? mem : { ...DEFAULT_MEMORY, dynamicMemory: [], userActiveRepos: {}, admins: [] };
   } catch (err) {
     captureException(err, { context: "getRuntimeMemory" });
-    return DEFAULT_MEMORY;
+    return { ...DEFAULT_MEMORY, dynamicMemory: [], userActiveRepos: {}, admins: [] };
   }
 }
 
@@ -224,7 +274,7 @@ async function fetchCodebaseContextForRAG(owner = "Ismail-Benali", repo = "HELIO
           continue;
         }
         const content = Buffer.from(file.content, 'base64').toString('utf8');
-        context += `\n--- File Content: ${path} ---\n${content.substring(0, 3000)}\n`;
+        context += `\n--- File Content: ${path} ---\n${redactSecrets(content.substring(0, 3000))}\n`;
       } catch (e) {
         context += `\n--- File: ${path} --- (Error: ${e.message})\n`;
       }
@@ -239,12 +289,39 @@ async function fetchCodebaseContextForRAG(owner = "Ismail-Benali", repo = "HELIO
 
 // دالة مساعدة للتحقق من أن المستودع هو HELIOS-NET
 function isHeliosRepo(owner, repo) {
-  return owner.toLowerCase() === "ismail-benali" && repo.toLowerCase() === "helios-net";
+  return typeof owner === 'string' &&
+    typeof repo === 'string' &&
+    owner.toLowerCase() === "ismail-benali" &&
+    repo.toLowerCase() === "helios-net";
+}
+
+function isSafeTaskType(taskType: string): boolean {
+  return typeof taskType === 'string' && /^[a-z][a-z0-9-]{1,30}$/.test(taskType);
+}
+
+function isSafeFilePath(filePath: string): boolean {
+  return typeof filePath === 'string' &&
+    filePath.length > 0 &&
+    filePath.length <= 300 &&
+    !filePath.startsWith('/') &&
+    !filePath.includes('..') &&
+    /^[A-Za-z0-9._\/-]+$/.test(filePath);
+}
+
+function isTrustedHeliosGitHubUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || url.hostname !== 'github.com') return false;
+    const parts = url.pathname.split('/').filter(Boolean);
+    return isHeliosRepo(parts[0], parts[1]);
+  } catch {
+    return false;
+  }
 }
 
 async function handleTaskFix(chatId, owner, repo, taskType, filePath, memory) {
-  if (!isHeliosRepo(owner, repo)) {
-    await sendTelegramMessage(chatId, "⛔ هذا المستودع خارج نطاق صلاحياتي.");
+  if (!isHeliosRepo(owner, repo) || !isSafeTaskType(taskType) || !isSafeFilePath(filePath)) {
+    await sendTelegramMessage(chatId, "Unable to process this task: repository, task type, or file path is invalid.");
     return;
   }
   try {
@@ -259,7 +336,7 @@ async function handleTaskFix(chatId, owner, repo, taskType, filePath, memory) {
   }
 }
 
-export default async function handler(req, res) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const envChatId = process.env.TELEGRAM_CHAT_ID;
 
   res.setHeader("X-Content-Type-Options", "nosniff");
@@ -275,11 +352,42 @@ export default async function handler(req, res) {
 
   if (req.method === "POST") {
     const githubEvent = req.headers?.["x-github-event"];
-    if (githubEvent && !verifyGitHubSignature(req)) {
-      return res.status(401).json({ error: "Invalid GitHub signature" });
+    let rawBody: string;
+
+    try {
+      rawBody = await readRequestBody(req);
+    } catch (error) {
+      const status = error.message === 'Request body too large' ? 413 : 400;
+      return res.status(status).json({ error: status === 413 ? 'Payload too large' : 'Invalid request body' });
     }
 
-    if (isDashboardRequest) {
+    if (Buffer.byteLength(rawBody) > MAX_BODY_BYTES) {
+      return res.status(413).json({ error: "Payload too large" });
+    }
+
+    let payload: any;
+    try {
+      payload = rawBody ? JSON.parse(rawBody) : {};
+    } catch {
+      return res.status(400).json({ error: "Invalid JSON payload" });
+    }
+
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      return res.status(400).json({ error: "Invalid JSON payload" });
+    }
+
+    req.body = payload;
+
+    if (githubEvent) {
+      if (!verifyGitHubSignature(req, rawBody)) {
+        return res.status(401).json({ error: "Invalid GitHub signature" });
+      }
+
+      const deliveryId = req.headers?.["x-github-delivery"];
+      if (typeof deliveryId === 'string' && await isDuplicateDelivery(deliveryId)) {
+        return res.status(200).json({ received: true, duplicate: true });
+      }
+    } else if (isDashboardRequest) {
       if (!envChatId) {
         return res.status(503).json({ error: "TELEGRAM_CHAT_ID is not configured" });
       }
@@ -287,22 +395,28 @@ export default async function handler(req, res) {
       if (!rate.allowed) return rateLimitResponse(res, 60);
     } else {
       const telegramSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
-      if (telegramSecret) {
-        const providedSecret = req.headers?.["x-telegram-bot-api-secret-token"];
-        if (providedSecret !== telegramSecret) {
-          return res.status(401).json({ error: "Invalid Telegram webhook secret" });
-        }
-      } else if (!githubEvent) {
-        console.warn("TELEGRAM_WEBHOOK_SECRET is not configured; webhook authenticity cannot be verified");
+      if (!telegramSecret) {
+        return res.status(503).json({ error: "TELEGRAM_WEBHOOK_SECRET is not configured" });
       }
-    }
 
-    if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
-      return res.status(400).json({ error: "Invalid JSON payload" });
+      const providedSecret = req.headers?.["x-telegram-bot-api-secret-token"];
+      if (!safeEqual(providedSecret, telegramSecret)) {
+        return res.status(401).json({ error: "Invalid Telegram webhook secret" });
+      }
+
+      const rate = await enforceRateLimit(req, "telegram_webhook", 120, 60);
+      if (!rate.allowed) return rateLimitResponse(res, 60);
     }
   }
 
-  if (req.method === "GET" && req.query.cron === "true") {
+  if (req.method === "GET" && req.query?.cron === "true") {
+    if (!isCronAuthorized(req) && !isDashboardAuthorized(req)) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const rate = await enforceRateLimit(req, "cron", 6, 60);
+    if (!rate.allowed) return rateLimitResponse(res, 60);
+
     if (envChatId) {
       // تسليم التنبيهات المجمعة أولاً
       await flushNotifications(envChatId);
@@ -330,9 +444,10 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "GET" && (req.query?.health === "true" || req.url?.includes("health"))) {
+    const dashboardAuthorized = isDashboardAuthorized(req);
     let kvConnected = false;
     try {
-      await kv.set("helios_health_ping", Date.now());
+      await kv.get("helios_health_ping");
       kvConnected = true;
     } catch {
       kvConnected = false;
@@ -348,25 +463,33 @@ export default async function handler(req, res) {
     const requiredOnline = services.telegram && services.github && services.ai && services.kv;
     const status = requiredOnline ? "healthy" : "degraded";
 
-    await recordHealthSnapshot({ status, services });
+    if (dashboardAuthorized) {
+      await recordHealthSnapshot({ status, services });
+    }
 
     return res.status(200).json({
       status,
       timestamp: new Date().toISOString(),
-      services
+      ...(dashboardAuthorized ? { services } : {})
     });
   }
 
   if (req.method === "GET" && req.query?.test === "true") {
-    return res.status(200).json({
+    const dashboardAuthorized = isDashboardAuthorized(req);
+    const response: Record<string, any> = {
       success: true,
       message: "Bot handler reachable",
-      telegram: Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
-      github: Boolean((process.env.GITHUB_APP_ID || process.env.APP_ID) && (process.env.GITHUB_PRIVATE_KEY || process.env.PRIVATE_KEY)),
-      ai: Boolean(process.env.GROQ_API_KEY || process.env.OPENROUTER_API_KEY),
-      sentry: Boolean(process.env.SENTRY_DSN),
       timestamp: new Date().toISOString()
-    });
+    };
+
+    if (dashboardAuthorized) {
+      response.telegram = Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID);
+      response.github = Boolean((process.env.GITHUB_APP_ID || process.env.APP_ID) && (process.env.GITHUB_PRIVATE_KEY || process.env.PRIVATE_KEY));
+      response.ai = Boolean(process.env.GROQ_API_KEY || process.env.OPENROUTER_API_KEY);
+      response.sentry = Boolean(process.env.SENTRY_DSN);
+    }
+
+    return res.status(200).json(response);
   }
 
   if (req.method !== "POST") {
@@ -393,9 +516,14 @@ export default async function handler(req, res) {
       await setTelegramMessageReaction(queryChatId, messageId, "🔥");
       const data = callbackQuery.data;
       const memory = await getRuntimeMemory();
+      const requesterIsAdmin = isDashboardRequest || isAdmin(queryChatId, memory);
 
       if (data.startsWith("comment:")) {
         const prOrIssueUrl = data.replace("comment:", "");
+        if (!requesterIsAdmin || !isTrustedHeliosGitHubUrl(prOrIssueUrl)) {
+          await answerTelegramCallback(callbackQuery.id, "Unauthorized or invalid GitHub URL.");
+          return res.status(200).json({ success: false });
+        }
         await answerTelegramCallback(callbackQuery.id, "⏳ جاري توليد ونشر التعليق التقني بالإنجليزية...");
         const parsedContent = await parseAndFetchGitHubUrl(prOrIssueUrl);
         const commentBody = await processSmartAIResponse(`Write an elite technical comment in English for HELIOS-NET based on:\n${parsedContent}`, memory.dynamicMemory);
@@ -403,6 +531,10 @@ export default async function handler(req, res) {
         await sendTelegramMessage(queryChatId, `🤖 *رد أوتوماتيكي عبر HeliosPilot:*\n${result}`);
       } else if (data.startsWith("review:")) {
         const prUrl = data.replace("review:", "");
+        if (!requesterIsAdmin || !isTrustedHeliosGitHubUrl(prUrl)) {
+          await answerTelegramCallback(callbackQuery.id, "Unauthorized or invalid GitHub URL.");
+          return res.status(200).json({ success: false });
+        }
         await answerTelegramCallback(callbackQuery.id, "🔍 جاري التدقيق الأمني للكود...");
         const parsedContent = await parseAndFetchGitHubUrl(prUrl);
         const reviewBody = await processSmartAIResponse(`Perform an elite 25-yr veteran DevSecOps security & quality code review in English for this PR in HELIOS-NET:\n${parsedContent}`, memory.dynamicMemory);
@@ -414,6 +546,11 @@ export default async function handler(req, res) {
         await sendTelegramMessage(queryChatId, `🛠️ **HeliosPilot Auto-Patch Engine:**\nتحليل فشل الـ Actions جاري. رابط العملية:\n${runUrl}`);
       } else if (data.startsWith("approve:")) {
         const [_, taskType, filePath, owner, repo] = data.split(":");
+        if (!requesterIsAdmin || !isHeliosRepo(owner, repo) || !isSafeTaskType(taskType) || !isSafeFilePath(filePath)) {
+          await answerTelegramCallback(callbackQuery.id, "Unauthorized or invalid approval request.");
+          return res.status(200).json({ success: false });
+        }
+        await auditEvent("callback_approve", { actor: queryChatId, owner, repo, taskType, filePath }, req);
         await answerTelegramCallback(callbackQuery.id, "⚡ بدء عملية التصحيح...");
         await sendTelegramMessage(queryChatId, `🤖 **HeliosPilot Engine:**\n1. جاري تحليل الكود والبحث عن الحل الأمثل لـ ${taskType} في \`${filePath}\`...`);
         
@@ -428,13 +565,32 @@ export default async function handler(req, res) {
         await sendTelegramMessage(queryChatId, `3. تمت المهمة بنجاح! 🎉\n\n${result}`);
       } else if (data.startsWith("mergepr:")) {
         const [_, owner, repo, prNumber] = data.split(":");
-        await answerTelegramCallback(callbackQuery.id, "⚡ جاري دمج الـ PR...");
+        if (!requesterIsAdmin || !isHeliosRepo(owner, repo) || !/^\d+$/.test(String(prNumber))) {
+          await answerTelegramCallback(callbackQuery.id, "Unauthorized or invalid merge request.");
+          return res.status(200).json({ success: false });
+        }
+        await answerTelegramCallback(callbackQuery.id, "Merging pull request...");
         
         const octokit = await getInstallationOctokitForRepo(owner, repo);
-        if (octokit) {
-            await octokit.pulls.merge({ owner, repo, pull_number: prNumber });
-            await sendTelegramMessage(queryChatId, `✅ **تم دمج الـ PR #${prNumber} بنجاح!** 🎉`);
+        if (!octokit) {
+          await sendTelegramMessage(queryChatId, `�?O Unable to access ${owner}/${repo}.`);
+          return res.status(200).json({ success: false });
         }
+
+        const pullNumber = Number(prNumber);
+        const { data: pullRequest } = await octokit.pulls.get({ owner, repo, pull_number: pullNumber });
+        if (pullRequest.state !== "open" || !pullRequest.head.ref.startsWith("helios-pilot/")) {
+          await sendTelegramMessage(queryChatId, `�?O Refusing to merge PR #${pullNumber}: only open HeliosPilot branches may be merged.`);
+          return res.status(200).json({ success: false });
+        }
+        if (pullRequest.mergeable === false) {
+          await sendTelegramMessage(queryChatId, `�?O PR #${pullNumber} is not mergeable.`);
+          return res.status(200).json({ success: false });
+        }
+
+        await auditEvent("callback_merge", { actor: queryChatId, owner, repo, prNumber: pullNumber }, req);
+        await octokit.pulls.merge({ owner, repo, pull_number: pullNumber, sha: pullRequest.head.sha, merge_method: "squash" });
+        await sendTelegramMessage(queryChatId, `�o. **���. ���.�� ���"�? PR #${pullNumber} ���ŝ�����!** �YZ%`);
       } else if (data.startsWith("viewpr:")) {
         const runUrl = data.replace("viewpr:", "");
         await answerTelegramCallback(callbackQuery.id, "🔍 جاري جلب تفاصيل الـ PR...");

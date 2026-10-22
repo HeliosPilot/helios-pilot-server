@@ -17,7 +17,7 @@ HeliosPilot is a serverless Telegram bot and dashboard for monitoring GitHub rep
 ```text
 api/
   index.ts          Main Telegram + GitHub webhook handler
-  dashboard.ts      Token-protected dashboard HTML endpoint
+  dashboard.ts      Dashboard HTML endpoint (UI only; API data stays protected)
   memory.ts         Token-protected memory read/write endpoint
   audit.ts          Token-protected audit log endpoint
   metrics.ts        Token-protected health/latency history endpoint
@@ -57,18 +57,24 @@ TELEGRAM_CHAT_ID=
 TELEGRAM_WEBHOOK_SECRET=
 GROQ_API_KEY=
 OPENROUTER_API_KEY=
-APP_ID=
-PRIVATE_KEY=
-WEBHOOK_SECRET=
+GITHUB_APP_ID=
+GITHUB_PRIVATE_KEY=
+GITHUB_WEBHOOK_SECRET=
 SENTRY_DSN=
+SENTRY_TRACES_SAMPLE_RATE=0.1
 DASHBOARD_TOKEN=
+CRON_SECRET=
 KV_REST_API_URL=
 KV_REST_API_TOKEN=
 ```
 
-`DASHBOARD_TOKEN` is required for `/dashboard.html` and `/api/memory`. The dashboard fails closed when it is missing.
+Legacy names `APP_ID`, `PRIVATE_KEY`, and `WEBHOOK_SECRET` are still accepted as fallbacks.
 
-`TELEGRAM_WEBHOOK_SECRET` is strongly recommended. When it is not set, the API cannot verify Telegram webhook authenticity and logs a warning.
+`DASHBOARD_TOKEN` protects every dashboard API request. The dashboard HTML can be opened without a token, but it prompts for the token and sends it only through the `x-dashboard-token` header. It is never accepted from the URL query string.
+
+`TELEGRAM_WEBHOOK_SECRET` is required. Telegram webhook requests fail closed with `503` when it is missing, and with `401` when the secret is invalid.
+
+`CRON_SECRET` protects `GET /api?cron=true` through `Authorization: Bearer <CRON_SECRET>`. The dashboard token is also accepted for manual runs.
 
 ## Local Development
 
@@ -92,7 +98,7 @@ Open:
 https://<your-deployment>/dashboard.html
 ```
 
-Enter the value of `DASHBOARD_TOKEN`. The dashboard is fetched with the `x-dashboard-token` header and rendered inside a same-origin iframe, so the token is not placed in the URL. Its API calls send the token through the same header.
+Enter the value of `DASHBOARD_TOKEN` in the unlock dialog. The token is stored in `sessionStorage` and sent only through the `x-dashboard-token` header. It is never placed in the URL.
 
 Dashboard capabilities:
 
@@ -110,9 +116,10 @@ Dashboard capabilities:
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | POST | `/api` | Telegram webhook, GitHub webhook, and dashboard commands |
-| GET | `/api?health=true` | Service health |
-| GET | `/api?test=true` | Connectivity test |
-| GET | `/api/dashboard` | Protected dashboard HTML (`x-dashboard-token` header) |
+| GET | `/api?health=true` | Service health (detailed data requires token) |
+| GET | `/api?test=true` | Connectivity test (details require token) |
+| GET | `/api?cron=true` | Security digest cron (`CRON_SECRET` or dashboard token) |
+| GET | `/api/dashboard` | Dashboard HTML (token prompt; data APIs stay protected) |
 | GET | `/api/memory` | Read runtime memory (token required) |
 | POST | `/api/memory` | Save or clear runtime memory (token required) |
 | GET | `/api/audit` | Read the recent audit trail (token required) |
@@ -134,12 +141,17 @@ Dashboard capabilities:
 
 ## Security Notes
 
-- Dashboard and memory endpoints require `DASHBOARD_TOKEN` and fail closed if it is absent.
+- Dashboard data endpoints require `DASHBOARD_TOKEN` and fail closed if it is absent.
+- The dashboard token is accepted only from the `x-dashboard-token` header, never from a query string.
 - Memory writes require the `x-dashboard-token` header.
-- Dashboard and dashboard-command requests are rate limited through Vercel KV.
-- Memory changes and dashboard commands are written to the `helios_audit_log` KV entry.
-- GitHub webhooks are verified with `WEBHOOK_SECRET` (or `GITHUB_WEBHOOK_SECRET`).
-- Set `TELEGRAM_WEBHOOK_SECRET` to verify Telegram webhook requests.
+- Dashboard, Telegram, and cron requests are rate limited through Vercel KV.
+- Rate limiting fails closed when KV is unavailable.
+- Memory changes, approvals, merges, and dashboard commands are written to the `helios_audit_log_v2` KV list.
+- GitHub webhooks are verified over the raw request body with `GITHUB_WEBHOOK_SECRET` (or `WEBHOOK_SECRET`), and delivery IDs are deduplicated.
+- `TELEGRAM_WEBHOOK_SECRET` is required; Telegram webhook requests fail closed when it is missing.
+- `approve:` and `mergepr:` callbacks require an admin, a HELIOS-NET repository, and sanitized task/file/PR values. Only open `helios-pilot/*` branches can be merged.
+- Sentry scrubs authorization, cookie, dashboard, Telegram, and GitHub signature headers. Trace sampling defaults to `0.1`.
+- The dashboard response includes a Content Security Policy and other hardening headers.
 
 ## Testing
 
@@ -158,4 +170,4 @@ MIT. See [LICENSE](LICENSE).
 
 ## نظرة سريعة بالعربية
 
-HeliosPilot بوت Telegram ولوحة تحكم Serverless لمراقبة GitHub وتحليل الكود وإدارة الذاكرة. لوحة التحكم محمية بـ `DASHBOARD_TOKEN`، والذاكرة محفوظة في Vercel KV. شغّل `npm run check` و`npm test` قبل النشر.
+HeliosPilot بوت Telegram ولوحة تحكم Serverless لمراقبة GitHub وتحليل الكود وإدارة الذاكرة. تُقدَّم واجهة لوحة التحكم دون توكن، ثم تُطلب قيمة `DASHBOARD_TOKEN` وتُرسل عبر الهيدر فقط، بينما تبقى كل واجهات البيانات محمية. الذاكرة محفوظة في Vercel KV، و`TELEGRAM_WEBHOOK_SECRET` و`CRON_SECRET` إلزاميان لتشغيل Webhook وcron بأمان. شغّل `npm run check` و`npm test` قبل النشر.

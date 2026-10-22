@@ -174,6 +174,7 @@ kbd{border:1px solid var(--border);border-radius:5px;padding:2px 5px;font-family
 .dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
 .dialog-head h2{font-size:1.15rem}
 .dialog p{color:var(--muted);font-size:.86rem;line-height:1.6}
+.dialog .field{width:100%;margin-top:12px}
 .setting-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 0;border-bottom:1px solid var(--border)}
 .setting-row:last-of-type{border-bottom:0}
 .setting-row strong{display:block;font-size:.86rem}
@@ -374,17 +375,20 @@ body.compact .ops-grid,body.compact .overview-grid{gap:12px}
   </div>
 </dialog>
 
+<dialog class="dialog" id="tokenDialog">
+  <form method="dialog" class="dialog-body" id="tokenForm">
+    <div class="dialog-head"><h2>Unlock control center</h2></div>
+    <p>Enter the dashboard token. It is stored only in this browser session and sent in the request header.</p>
+    <input class="field" id="tokenInput" type="password" placeholder="Dashboard token" autocomplete="current-password" required>
+    <div class="dialog-actions"><button class="btn btn-primary" type="submit">Unlock</button></div>
+  </form>
+</dialog>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 const $ = (id) => document.getElementById(id);
-const params = new URLSearchParams(window.location.search);
-const queryToken = params.get('token');
-const dashboardToken = queryToken || sessionStorage.getItem('dashboardToken') || '';
-if (queryToken) {
-  sessionStorage.setItem('dashboardToken', queryToken);
-  try { history.replaceState({}, document.title, window.location.pathname); } catch {}
-}
+let dashboardToken = sessionStorage.getItem('dashboardToken') || '';
 
 const SERVICE_DEFS = [
   { key: 'telegram', name: 'Telegram', detail: 'Bot API' },
@@ -1292,10 +1296,63 @@ setCompact(savedCompact);
 setAutoRefresh(true);
 setInterval(tick, 1000);
 if (!dashboardToken) {
-  setSideStatus('Token missing', 'bad');
-  toast('Dashboard token missing. Reopen /dashboard.html.', 'error');
+  setSideStatus('Locked', 'bad');
+  setAutoRefresh(false);
+  showTokenDialog();
+} else {
+  bootDashboard();
 }
-refreshAll(true);
+
+async function bootDashboard() {
+  try {
+    const response = await fetch('/api/metrics', { headers: { 'x-dashboard-token': dashboardToken } });
+    if (response.status === 401 || response.status === 503) {
+      sessionStorage.removeItem('dashboardToken');
+      dashboardToken = '';
+      setAutoRefresh(false);
+      setSideStatus('Session expired', 'bad');
+      showTokenDialog();
+      toast('Session expired. Enter the dashboard token again.', 'error');
+      return;
+    }
+  } catch {}
+  await refreshAll(true);
+}
+
+async function submitToken(event) {
+  event.preventDefault();
+  const input = $('tokenInput');
+  const value = input.value.trim();
+  if (!value) return;
+
+  try {
+    const response = await fetch('/api/metrics', { headers: { 'x-dashboard-token': value } });
+    if (!response.ok) {
+      toast('Invalid dashboard token', 'error');
+      input.select();
+      return;
+    }
+  } catch {
+    toast('Unable to verify token', 'error');
+    return;
+  }
+
+  dashboardToken = value;
+  sessionStorage.setItem('dashboardToken', dashboardToken);
+  $('tokenDialog').close();
+  setAutoRefresh(true);
+  setSideStatus('Connected', 'ok');
+  await refreshAll(true);
+  toast('Dashboard unlocked');
+}
+
+function showTokenDialog() {
+  const dialog = $('tokenDialog');
+  if (!dialog.open) dialog.showModal();
+  setTimeout(() => $('tokenInput').focus(), 50);
+}
+
+$('tokenForm').addEventListener('submit', submitToken);
 
 $('menuToggle').addEventListener('click', openSidebar);
 $('sidebarOverlay').addEventListener('click', closeSidebar);

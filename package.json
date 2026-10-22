@@ -6,7 +6,7 @@
   "type": "module",
   "dependencies": {
     "@octokit/rest": "^20.0.2",
-    "@sentry/node": "^8.0.0",
+    "@sentry/node": "^11.8.0",
     "@vercel/kv": "^1.0.1",
     "groq-sdk": "^0.7.0",
     "node-fetch": "^3.3.2"

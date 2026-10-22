@@ -1,13 +1,32 @@
 import { Octokit } from "@octokit/rest";
 import crypto from 'crypto';
 
-export function verifyGitHubSignature(req) {
+const SECRET_PATTERNS = [
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
+  /\bgh[pousr]_[A-Za-z0-9]{20,}\b/g,
+  /\bgithub_pat_[A-Za-z0-9_]{20,}\b/g,
+  /\bsk-[A-Za-z0-9]{20,}\b/g,
+  /\bnvapi-[A-Za-z0-9_-]{10,}\b/g,
+  /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g,
+  /\bAIza[0-9A-Za-z_-]{20,}\b/g,
+  /((?:api[_-]?key|secret|token|password|private[_-]?key)\s*[:=]\s*)(['"]?)[^\s'"]+\2/gi
+];
+
+export function redactSecrets(text: string): string {
+  return SECRET_PATTERNS.reduce(
+    (value, pattern) => value.replace(pattern, (_match, prefix) => `${prefix || ''}[REDACTED]`),
+    String(text ?? '')
+  );
+}
+
+export function verifyGitHubSignature(req, rawBody?) {
   const signature = req.headers["x-hub-signature-256"];
   const secret = process.env.GITHUB_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET;
   if (!signature || !secret) return false;
 
+  const body = rawBody ?? req.rawBody ?? (typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
   const hmac = crypto.createHmac("sha256", secret);
-  const digest = `sha256=${hmac.update(JSON.stringify(req.body)).digest("hex")}`;
+  const digest = `sha256=${hmac.update(body).digest("hex")}`;
   try {
     return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
   } catch (e) {
@@ -16,8 +35,8 @@ export function verifyGitHubSignature(req) {
 }
 
 export function generateGitHubAppJWT() {
-  const appId = process.env.APP_ID;
-  let privateKey = process.env.PRIVATE_KEY;
+  const appId = process.env.GITHUB_APP_ID || process.env.APP_ID;
+  let privateKey = process.env.GITHUB_PRIVATE_KEY || process.env.PRIVATE_KEY;
 
   if (!appId || !privateKey) {
     throw new Error("GitHub App credentials (APP_ID or PRIVATE_KEY) are missing.");
@@ -110,6 +129,23 @@ export async function createBranch(owner, repo, branchName, baseBranch = "main")
 
 export async function createAutomatedPR(owner, repo, taskType, fixContent, filePath) {
   try {
+    if (!/^[A-Za-z0-9-]+$/.test(String(owner)) || !/^[A-Za-z0-9._-]+$/.test(String(repo))) {
+      throw new Error("Invalid repository name.");
+    }
+    if (!/^[a-z][a-z0-9-]{1,30}$/.test(String(taskType))) {
+      throw new Error("Invalid task type.");
+    }
+    if (
+      typeof filePath !== 'string' ||
+      filePath.length === 0 ||
+      filePath.length > 300 ||
+      filePath.startsWith('/') ||
+      filePath.includes('..') ||
+      !/^[A-Za-z0-9._\/-]+$/.test(filePath)
+    ) {
+      throw new Error("Invalid file path.");
+    }
+
     const repoOctokit = await getInstallationOctokitForRepo(owner, repo);
     if (!repoOctokit) throw new Error("لا توجد صلاحيات للمستودع.");
 
@@ -206,15 +242,15 @@ export async function parseAndFetchGitHubUrl(url) {
       const { data: issue } = await repoOctokit.issues.get({ owner, repo, issue_number: parseInt(issueNumber) });
       const { data: comments } = await repoOctokit.issues.listComments({ owner, repo, issue_number: parseInt(issueNumber) });
 
-      const commentsText = comments.length > 0 
-        ? comments.map(c => `- @${c.user.login}: ${c.body}`).join("\n") 
+      const commentsText = comments.length > 0
+        ? comments.map(c => `- @${c.user.login}: ${redactSecrets(c.body)}`).join("\n")
         : "No comments yet.";
 
-      return `📌 **Issue #${issueNumber} (${owner}/${repo}):**\n` +
+      return `�Y"O **Issue #${issueNumber} (${owner}/${repo}):**\n` +
         `- **Title:** ${issue.title}\n` +
         `- **State:** ${issue.state}\n` +
         `- **Author:** @${issue.user.login}\n` +
-        `- **Body:**\n${issue.body || "No description."}\n\n` +
+        `- **Body:**\n${redactSecrets(issue.body || "No description.")}\n\n` +
         `💬 **Comments (${comments.length}):**\n${commentsText}`;
     }
 
@@ -232,7 +268,7 @@ export async function parseAndFetchGitHubUrl(url) {
         `- **Title:** ${pr.title}\n` +
         `- **State:** ${pr.state}\n` +
         `- **Branches:** ${pr.head.ref} ⬅️ ${pr.base.ref}\n` +
-        `- **Body:**\n${pr.body || "No description."}\n\n` +
+        `- **Body:**\n${redactSecrets(pr.body || "No description.")}\n\n` +
         `📂 **Modified Files (${files.length}):**\n${filesSummary}`;
     }
 
@@ -296,7 +332,7 @@ export async function fetchCodebaseContextForRAG(owner = "Ismail-Benali", repo =
           continue;
         }
         const content = Buffer.from(file.content, "base64").toString("utf8");
-        context += `\n--- File Content: ${path} ---\n${content.substring(0, 3000)}\n`;
+        context += `\n--- File Content: ${path} ---\n${redactSecrets(content.substring(0, 3000))}\n`;
       } catch (error) {
         context += `\n--- File: ${path} --- (Error: ${error.message})\n`;
       }

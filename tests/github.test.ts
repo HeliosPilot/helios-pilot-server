@@ -7,6 +7,10 @@ function signatureFor(secret, body) {
   return `sha256=${crypto.createHmac('sha256', secret).update(JSON.stringify(body)).digest('hex')}`;
 }
 
+function signatureForRaw(secret, body) {
+  return `sha256=${crypto.createHmac('sha256', secret).update(body).digest('hex')}`;
+}
+
 function withSecret(secret, callback) {
   const previousGithub = process.env.GITHUB_WEBHOOK_SECRET;
   const previous = process.env.WEBHOOK_SECRET;
@@ -54,6 +58,19 @@ test('GitHub signature verification rejects an invalid signature', () => {
         body: { action: 'opened' }
       }),
       false
+    );
+  });
+});
+
+test('GitHub signature verification uses the raw request body', () => {
+  withSecret('webhook-secret', () => {
+    const rawBody = '{"action":"opened","number":1}';
+    assert.strictEqual(
+      verifyGitHubSignature(
+        { headers: { 'x-hub-signature-256': signatureForRaw('webhook-secret', rawBody) } },
+        rawBody
+      ),
+      true
     );
   });
 });
