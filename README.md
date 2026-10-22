@@ -174,7 +174,7 @@ How it works:
 
 1. Creates a short-lived GitHub App installation token for `Ismail-Benali/HELIOS-NET`.
 2. Checks out HELIOS-NET into a separate `target/` directory.
-3. Runs the pinned Codex Security CLI (`0.6.0`) with `provider: openrouter`, `effort: medium`, a 15-minute investigation allowance, and a `$2` cost cap.
+3. Runs the pinned Codex Security CLI (`0.6.0`) with `provider: openrouter`, `effort: medium`, and a 15-minute investigation allowance.
 4. Uploads SARIF to HELIOS-NET code scanning when the GitHub App has `security-events: write`.
 5. Creates or updates one open issue in HELIOS-NET with the summary and top findings.
 6. HeliosPilot receives the `issues` webhook and sends the Telegram notification.
@@ -216,7 +216,7 @@ The workflow skips with a warning when configuration is missing, so it never run
 - CodeQL runs on pushes, pull requests, and a weekly schedule with the `security-extended` query suite.
 - All GitHub Actions are pinned to full commit SHAs, and CI rejects unpinned actions through `npm run check:actions`.
 - Codex Security runs weekly and on demand through OpenRouter, is report-only (`fail-on-severity: none`), and uploads SARIF when the scan completes.
-- The HELIOS-NET workflow uses a short-lived GitHub App installation token, never a stored PAT, and runs with a `$2` cost cap and a 15-minute investigation allowance.
+- The HELIOS-NET workflow uses a short-lived GitHub App installation token, never a stored PAT, and runs with a 15-minute investigation allowance.
 - `/remember`, `/memory`, and `/forget` require an admin, are rate limited to 10 requests per minute, and write to the audit log.
 - Dependabot checks npm dependencies and pinned GitHub Actions weekly.
 - GitHub integration tests run against a local `emulate` server on Node 24, without real GitHub credentials or network access.
