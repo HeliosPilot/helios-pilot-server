@@ -1,0 +1,74 @@
+name: Codex Security
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 7 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+concurrency:
+  group: codex-security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    name: Codex Security (OpenRouter)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Set up the Ubuntu sandbox
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes bubblewrap apparmor-profiles
+          sudo apparmor_parser -r /usr/share/apparmor/extra-profiles/bwrap-userns-restrict
+
+      - name: Checkout repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Check Codex Security configuration
+        id: preflight
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          CODEX_SECURITY_MODEL: ${{ vars.CODEX_SECURITY_MODEL }}
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo "::warning::OPENROUTER_API_KEY secret is not configured; skipping Codex Security scan."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$CODEX_SECURITY_MODEL" ]; then
+            echo "::warning::CODEX_SECURITY_MODEL repository variable is not configured; skipping Codex Security scan."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Run Codex Security scan
+        id: security
+        if: steps.preflight.outputs.ready == 'true'
+        uses: openai/codex-security@beac2a77ad1411626f77031294b6efdfd8f6b1e8 # action-v0.5.1
+        with:
+          provider: openrouter
+          model: ${{ vars.CODEX_SECURITY_MODEL }}
+          mode: standard
+          effort: medium
+          fail-on-severity: none
+          upload-artifacts: 'false'
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
+      - name: Upload security findings to code scanning
+        if: ${{ always() && steps.preflight.outputs.ready == 'true' && steps.security.outputs.sarif-upload-ready == 'true' }}
+        uses: github/codeql-action/upload-sarif@793b778da9c9275a0f276522b27cb5fc14bba279 # v4
+        with:
+          sarif_file: ${{ steps.security.outputs.sarif-path }}
+          sha: ${{ steps.security.outputs.scanned-sha }}
+          ref: ${{ steps.security.outputs.analysis-ref }}
+          category: codex-security-repository

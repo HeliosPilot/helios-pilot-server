@@ -1,0 +1,169 @@
+name: HELIOS-NET Security
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '41 4 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: helios-net-security
+  cancel-in-progress: true
+
+env:
+  TARGET_OWNER: Ismail-Benali
+  TARGET_REPO: HELIOS-NET
+  CODEX_SECURITY_VERSION: '0.6.0'
+
+jobs:
+  scan:
+    name: Codex Security scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+
+    steps:
+      - name: Check required configuration
+        id: preflight
+        env:
+          GITHUB_APP_ID: ${{ secrets.GITHUB_APP_ID }}
+          GITHUB_PRIVATE_KEY: ${{ secrets.GITHUB_PRIVATE_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          CODEX_SECURITY_MODEL: ${{ vars.CODEX_SECURITY_MODEL }}
+        run: |
+          missing=0
+          for name in GITHUB_APP_ID GITHUB_PRIVATE_KEY OPENROUTER_API_KEY CODEX_SECURITY_MODEL; do
+            if [ -z "${!name}" ]; then
+              echo "::warning::$name is not configured; skipping HELIOS-NET security scan."
+              missing=1
+            fi
+          done
+          if [ "$missing" -eq 1 ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout HeliosPilot
+        if: steps.preflight.outputs.ready == 'true'
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        if: steps.preflight.outputs.ready == 'true'
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.preflight.outputs.ready == 'true'
+        run: npm ci
+
+      - name: Create HELIOS-NET installation token
+        id: target-token
+        if: steps.preflight.outputs.ready == 'true'
+        env:
+          GITHUB_APP_ID: ${{ secrets.GITHUB_APP_ID }}
+          GITHUB_PRIVATE_KEY: ${{ secrets.GITHUB_PRIVATE_KEY }}
+          TARGET_OWNER: Ismail-Benali
+          TARGET_REPO: HELIOS-NET
+        run: node scripts/create-installation-token.mjs
+
+      - name: Checkout HELIOS-NET
+        if: steps.preflight.outputs.ready == 'true'
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: Ismail-Benali/HELIOS-NET
+          ref: master
+          token: ${{ steps.target-token.outputs.token }}
+          path: target
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Resolve target revision
+        id: target-revision
+        if: steps.preflight.outputs.ready == 'true'
+        run: |
+          echo "sha=$(git -C target rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "ref=$(git -C target symbolic-ref HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up the Ubuntu sandbox
+        if: steps.preflight.outputs.ready == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes bubblewrap apparmor-profiles python3
+          sudo apparmor_parser -r /usr/share/apparmor/extra-profiles/bwrap-userns-restrict
+
+      - name: Run Codex Security against HELIOS-NET
+        id: scan
+        if: steps.preflight.outputs.ready == 'true'
+        continue-on-error: true
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          CODEX_SECURITY_MODEL: ${{ vars.CODEX_SECURITY_MODEL }}
+          CODEX_SECURITY_STATE_DIR: ${{ runner.temp }}/codex-security-state
+          SCAN_DIR: ${{ runner.temp }}/helios-net-scan
+          SCAN_RESULT: ${{ runner.temp }}/helios-net-scan-result.json
+        run: |
+          rm -rf "$SCAN_DIR" "$CODEX_SECURITY_STATE_DIR"
+          mkdir -p "$SCAN_DIR" "$CODEX_SECURITY_STATE_DIR"
+          chmod 700 "$SCAN_DIR" "$CODEX_SECURITY_STATE_DIR"
+          npx --yes @openai/codex-security@${CODEX_SECURITY_VERSION} scan target \
+            --provider openrouter \
+            --model "$CODEX_SECURITY_MODEL" \
+            --mode standard \
+            --effort medium \
+            --max-time 15 \
+            --max-cost 2 \
+            --show-cost \
+            --headless \
+            --output-dir "$SCAN_DIR" \
+            --json > "$SCAN_RESULT"
+
+      - name: Upload SARIF to HELIOS-NET
+        if: ${{ always() && steps.preflight.outputs.ready == 'true' }}
+        continue-on-error: true
+        env:
+          TARGET_TOKEN: ${{ steps.target-token.outputs.token }}
+          TARGET_OWNER: Ismail-Benali
+          TARGET_REPO: HELIOS-NET
+          TARGET_SHA: ${{ steps.target-revision.outputs.sha }}
+          TARGET_REF: ${{ steps.target-revision.outputs.ref }}
+          SCAN_DIR: ${{ runner.temp }}/helios-net-scan
+          SARIF_CATEGORY: codex-security-helios-net
+        run: node scripts/upload-sarif.mjs
+
+      - name: Create or update HELIOS-NET issue
+        if: ${{ always() && steps.preflight.outputs.ready == 'true' }}
+        continue-on-error: true
+        env:
+          TARGET_TOKEN: ${{ steps.target-token.outputs.token }}
+          TARGET_OWNER: Ismail-Benali
+          TARGET_REPO: HELIOS-NET
+          TARGET_SHA: ${{ steps.target-revision.outputs.sha }}
+          TARGET_REF: ${{ steps.target-revision.outputs.ref }}
+          SCAN_DIR: ${{ runner.temp }}/helios-net-scan
+          SCAN_RESULT: ${{ runner.temp }}/helios-net-scan-result.json
+          SCAN_OUTCOME: ${{ steps.scan.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/create-security-issue.mjs
+
+      - name: Write job summary
+        if: ${{ always() && steps.preflight.outputs.ready == 'true' }}
+        run: |
+          {
+            echo "## HELIOS-NET Codex Security"
+            echo ""
+            echo "- Target: \`$TARGET_OWNER/$TARGET_REPO\`"
+            echo "- Commit: \`${{ steps.target-revision.outputs.sha }}\`"
+            echo "- Ref: \`${{ steps.target-revision.outputs.ref }}\`"
+            echo "- Scan outcome: \`${{ steps.scan.outcome }}\`"
+            echo "- Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail when the scan did not complete
+        if: ${{ steps.preflight.outputs.ready == 'true' && steps.scan.outcome != 'success' }}
+        run: exit 1

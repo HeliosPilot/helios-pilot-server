@@ -97,6 +97,46 @@ export function isAdmin(chatId?: string | number | null, memory: { admins?: stri
   return Boolean(memory.admins?.includes(chatId.toString())) || chatId.toString() === process.env.TELEGRAM_CHAT_ID;
 }
 
+export const MEMORY_MAX_ENTRIES = 25;
+export const MEMORY_MAX_ENTRY_LENGTH = 2000;
+
+export function appendMemoryEntry(entries: string[] | undefined, text: string, maxEntries = MEMORY_MAX_ENTRIES, maxLength = MEMORY_MAX_ENTRY_LENGTH): string[] {
+  const current = Array.isArray(entries)
+    ? entries.filter((entry) => typeof entry === 'string' && entry.trim()).map((entry) => entry.trim().slice(0, maxLength))
+    : [];
+  const normalized = String(text ?? '').trim().slice(0, maxLength);
+  if (!normalized) return current;
+  const next = [...current, normalized];
+  return next.length > maxEntries ? next.slice(next.length - maxEntries) : next;
+}
+
+export function removeMemoryEntry(entries: string[] | undefined, target: string): string[] | null {
+  const current = Array.isArray(entries) ? entries.slice() : [];
+  const value = String(target ?? '').trim().toLowerCase();
+  if (!value) return null;
+  if (value === 'all') return [];
+  const index = Number(value);
+  if (!Number.isInteger(index) || index < 1 || index > current.length) return null;
+  return current.filter((_entry, position) => position !== index - 1);
+}
+
+export function formatMemoryEntries(entries: string[] | undefined, limit = 10): string {
+  const current = Array.isArray(entries)
+    ? entries.filter((entry) => typeof entry === 'string' && entry.trim())
+    : [];
+  if (current.length === 0) return '';
+  const start = Math.max(0, current.length - limit);
+  return current
+    .slice(start)
+    .map((entry, position) => `${start + position + 1}. ${entry.slice(0, 300)}`)
+    .join("\n");
+}
+
+export function parseMemoryCommandArgument(text: string, command: string): string {
+  const pattern = new RegExp(`^/${command}(?:@\\S+)?\\s*`, 'i');
+  return String(text ?? '').replace(pattern, '').trim();
+}
+
 // دالة للحصول على الذاكرة العامة (القديمة)
 async function getRuntimeMemory(): Promise<HeliosMemory> {
   try {
@@ -802,6 +842,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           `• \`/autofix\` - فحص وترقيع ثغرات الأمان عبر PR تلقائي\n` +
           `• *(اسألني أي سؤال عن الكود وسأجيبك عبر Codebase RAG!)*`;
         await sendTelegramMessage(targetChatId, helpText);
+        await sendTelegramMessage(targetChatId, "أوامر الذاكرة (للمشرف فقط):\n/remember <نص التوجيه>\n/memory\n/forget <رقم الإدخال|all>");
         return res.status(200).json({ success: true });
       }
 
@@ -820,6 +861,62 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           memory.dynamicMemory.shift();
         }
         await saveRuntimeMemory(memory);
+      }
+
+      const isMemoryCommand = cleanCmd === "/remember" || cleanCmd === "/memory" || cleanCmd === "/forget";
+      if (isMemoryCommand) {
+        const isMemoryAdmin = isDashboardRequest || isAdmin(senderChatId, memory);
+        if (!isMemoryAdmin) {
+          await sendTelegramMessage(targetChatId, "غير مصرح: أوامر الذاكرة متاحة للمشرف فقط.");
+          return res.status(200).json({ success: false });
+        }
+
+        const memoryRate = await enforceRateLimit(req, "memory_command", 10, 60);
+        if (!memoryRate.allowed) return rateLimitResponse(res, 60);
+
+        if (cleanCmd === "/remember") {
+          const entryText = parseMemoryCommandArgument(userText, "remember");
+          if (entryText.length < 3) {
+            await sendTelegramMessage(targetChatId, "الاستخدام: /remember <نص التوجيه>");
+            return res.status(200).json({ success: false });
+          }
+
+          memory.dynamicMemory = appendMemoryEntry(memory.dynamicMemory, entryText);
+          await saveRuntimeMemory(memory);
+          await auditEvent("memory_remember", {
+            source: isDashboardRequest ? "dashboard" : "telegram",
+            length: entryText.length,
+            entries: memory.dynamicMemory.length
+          }, req);
+          await sendTelegramMessage(targetChatId, `تم حفظ التوجيه في الذاكرة الدائمة.\nعدد الإدخالات: ${memory.dynamicMemory.length}`);
+          return res.status(200).json({ success: true, entries: memory.dynamicMemory.length });
+        }
+
+        if (cleanCmd === "/memory") {
+          const entriesText = formatMemoryEntries(memory.dynamicMemory, 10);
+          await sendTelegramMessage(targetChatId, entriesText
+            ? `آخر إدخالات الذاكرة الدائمة:\n\n${entriesText}`
+            : "الذاكرة الدائمة فارغة حالياً.");
+          return res.status(200).json({ success: true, entries: memory.dynamicMemory.length });
+        }
+
+        const forgetTarget = parseMemoryCommandArgument(userText, "forget");
+        const nextEntries = removeMemoryEntry(memory.dynamicMemory, forgetTarget);
+        if (nextEntries === null) {
+          await sendTelegramMessage(targetChatId, "الاستخدام: /forget <رقم الإدخال|all>");
+          return res.status(200).json({ success: false });
+        }
+
+        const removed = memory.dynamicMemory.length - nextEntries.length;
+        memory.dynamicMemory = nextEntries;
+        await saveRuntimeMemory(memory);
+        await auditEvent("memory_forget", {
+          source: isDashboardRequest ? "dashboard" : "telegram",
+          removed,
+          entries: memory.dynamicMemory.length
+        }, req);
+        await sendTelegramMessage(targetChatId, `تم حذف ${removed} من إدخالات الذاكرة الدائمة. المتبقي: ${memory.dynamicMemory.length}`);
+        return res.status(200).json({ success: true, removed, entries: memory.dynamicMemory.length });
       }
 
       // ج) الأوامر الفردية المنفصلة بأولوية صارمة

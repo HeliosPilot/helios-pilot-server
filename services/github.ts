@@ -19,6 +19,11 @@ export function redactSecrets(text: string): string {
   );
 }
 
+function createOctokit(auth: string) {
+  const baseUrl = process.env.GITHUB_API_BASE_URL;
+  return new Octokit(baseUrl ? { auth, baseUrl } : { auth });
+}
+
 export function verifyGitHubSignature(req, rawBody?) {
   const signature = req.headers["x-hub-signature-256"];
   const secret = process.env.GITHUB_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET;
@@ -66,14 +71,14 @@ export function generateGitHubAppJWT() {
 export async function getInstallationOctokitForRepo(owner, repo) {
   try {
     const jwtToken = generateGitHubAppJWT();
-    const octokit = new Octokit({ auth: jwtToken });
+    const octokit = createOctokit(jwtToken);
     const { data: installations } = await octokit.apps.listInstallations();
 
     for (const installation of installations) {
       const { data: accessTokenData } = await octokit.apps.createInstallationAccessToken({
         installation_id: installation.id,
       });
-      const tempOctokit = new Octokit({ auth: accessTokenData.token });
+      const tempOctokit = createOctokit(accessTokenData.token);
       
       try {
         const { data: repoData } = await tempOctokit.repos.get({ owner, repo });
@@ -348,7 +353,7 @@ export async function fetchCodebaseContextForRAG(owner = "Ismail-Benali", repo =
 export async function fetchAppInstallationsAndRepos() {
   try {
     const jwtToken = generateGitHubAppJWT();
-    const octokit = new Octokit({ auth: jwtToken });
+    const octokit = createOctokit(jwtToken);
     const { data: installations } = await octokit.apps.listInstallations();
     
     if (!installations || installations.length === 0) {
@@ -360,8 +365,7 @@ export async function fetchAppInstallationsAndRepos() {
       const { data: accessTokenData } = await octokit.apps.createInstallationAccessToken({
         installation_id: installation.id,
       });
-
-      const installationOctokit = new Octokit({ auth: accessTokenData.token });
+      const installationOctokit = createOctokit(accessTokenData.token);
       const { data: reposData } = await installationOctokit.apps.listReposAccessibleToInstallation();
 
       for (const repo of reposData.repositories) {

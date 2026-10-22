@@ -19,10 +19,12 @@
     "check:actions": "node scripts/check-action-pins.mjs",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
+    "test:integration": "tsx --test tests/integration/*.test.ts",
     "build": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
+    "emulate": "^0.12.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }
