@@ -39,6 +39,21 @@ index.html          English landing page
 ar/index.html       Arabic landing page
 ```
 
+## Technology Stack
+
+| Layer | Used in HeliosPilot | Purpose |
+| --- | --- | --- |
+| Runtime | Node.js, TypeScript, Vercel Functions | Serverless API and webhooks |
+| Telegram | Telegram Bot API | Commands, callbacks, and notifications |
+| GitHub | GitHub App + [`@octokit/rest`](https://github.com/octokit/rest.js) | Webhooks, repositories, PRs, issues, and checks |
+| Storage | Vercel KV | Runtime memory, rate limits, and audit log |
+| AI | [`groq-sdk`](https://github.com/groq/groq-typescript) + OpenRouter | Primary model with automatic fallback |
+| Observability | [`@sentry/node`](https://github.com/getsentry/sentry-javascript) | Error tracking and scrubbed traces |
+| CI | GitHub Actions | Typecheck, tests, and action-pin verification |
+| Security scanning | [`github/codeql-action`](https://github.com/github/codeql-action) | JavaScript/TypeScript CodeQL analysis |
+| Dependency updates | GitHub Dependabot | Weekly npm and GitHub Actions updates |
+| Supply chain | SHA-pinned Actions + `scripts/check-action-pins.mjs` | Blocks unpinned external Actions in CI |
+
 ## Requirements
 
 - Node.js 18 or newer
@@ -174,4 +189,4 @@ MIT. See [LICENSE](LICENSE).
 
 ## نظرة سريعة بالعربية
 
-HeliosPilot بوت Telegram ولوحة تحكم Serverless لمراقبة GitHub وتحليل الكود وإدارة الذاكرة. تُقدَّم واجهة لوحة التحكم دون توكن، ثم تُطلب قيمة `DASHBOARD_TOKEN` وتُرسل عبر الهيدر فقط، بينما تبقى كل واجهات البيانات محمية. الذاكرة محفوظة في Vercel KV، و`TELEGRAM_WEBHOOK_SECRET` و`CRON_SECRET` إلزاميان لتشغيل Webhook وcron بأمان. شغّل `npm run check` و`npm test` قبل النشر.
+HeliosPilot بوت Telegram ولوحة تحكم Serverless لمراقبة GitHub وتحليل الكود وإدارة الذاكرة. تُقدَّم واجهة لوحة التحكم دون توكن، ثم تُطلب قيمة `DASHBOARD_TOKEN` وتُرسل عبر الهيدر فقط، بينما تبقى كل واجهات البيانات محمية. الذاكرة محفوظة في Vercel KV، و`TELEGRAM_WEBHOOK_SECRET` و`CRON_SECRET` إلزاميان لتشغيل Webhook وcron بأمان. قسم **Technology Stack** يوثّق التقنيات والمكتبات المستخدمة، ويشمل CI فحص TypeScript والاختبارات وCodeQL والتحقق من تثبيت GitHub Actions، مع تحديثات Dependabot الأسبوعية. شغّل `npm run check` و`npm run check:actions` و`npm test` قبل النشر.
