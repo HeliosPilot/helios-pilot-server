@@ -181,8 +181,16 @@ How it works:
 
 Required GitHub Actions configuration in `helios-pilot-server`:
 
-- Secrets: `GITHUB_APP_ID`, `GITHUB_PRIVATE_KEY`, `OPENROUTER_API_KEY`
+- Secrets: `HELIOS_APP_ID`, `HELIOS_APP_PRIVATE_KEY`, `OPENROUTER_API_KEY`
 - Variable: `CODEX_SECURITY_MODEL` (recommended: `anthropic/claude-sonnet-4.5`)
+
+GitHub does not allow Actions secret names beginning with `GITHUB_`, so the workflow maps `HELIOS_APP_ID` and `HELIOS_APP_PRIVATE_KEY` to the `GITHUB_APP_ID` and `GITHUB_PRIVATE_KEY` environment variables expected by the application.
+
+```bash
+gh secret set HELIOS_APP_ID --body 5317568
+gh secret set HELIOS_APP_PRIVATE_KEY < app-private-key.pem
+gh secret set OPENROUTER_API_KEY --body "$OPENROUTER_API_KEY"
+```
 
 Required GitHub App permissions on HELIOS-NET:
 
@@ -230,7 +238,7 @@ CI runs these checks on every push and pull request to `main`.
 
 1. Confirm `DASHBOARD_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `CRON_SECRET`, GitHub App credentials, and Vercel KV are set in Vercel Production.
 2. Set `SENTRY_DSN` if error tracking is required; `/api?health=true` reports `sentry:false` until it is configured.
-3. Add the `GITHUB_APP_ID`, `GITHUB_PRIVATE_KEY`, and `OPENROUTER_API_KEY` repository secrets and the `CODEX_SECURITY_MODEL` repository variable, then run `HELIOS-NET Security` once manually.
+3. Add the `HELIOS_APP_ID`, `HELIOS_APP_PRIVATE_KEY`, and `OPENROUTER_API_KEY` repository secrets and the `CODEX_SECURITY_MODEL` repository variable, then run `HELIOS-NET Security` once manually.
 4. Confirm the GitHub App is installed on HELIOS-NET with `contents: read`, `issues: write`, and `security-events: write`.
 5. Verify the deployment with `GET /api?health=true`, `GET /api?test=true`, and `GET /api/memory` using the `x-dashboard-token` header.
 6. Confirm the Telegram webhook is registered with the same `TELEGRAM_WEBHOOK_SECRET` and that `/start`, `/status`, `/remember`, `/memory`, and `/forget` respond.

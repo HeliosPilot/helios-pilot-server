@@ -27,8 +27,8 @@ jobs:
       - name: Check required configuration
         id: preflight
         env:
-          GITHUB_APP_ID: ${{ secrets.GITHUB_APP_ID }}
-          GITHUB_PRIVATE_KEY: ${{ secrets.GITHUB_PRIVATE_KEY }}
+          GITHUB_APP_ID: ${{ secrets.HELIOS_APP_ID }}
+          GITHUB_PRIVATE_KEY: ${{ secrets.HELIOS_APP_PRIVATE_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           CODEX_SECURITY_MODEL: ${{ vars.CODEX_SECURITY_MODEL }}
         run: |
@@ -66,8 +66,8 @@ jobs:
         id: target-token
         if: steps.preflight.outputs.ready == 'true'
         env:
-          GITHUB_APP_ID: ${{ secrets.GITHUB_APP_ID }}
-          GITHUB_PRIVATE_KEY: ${{ secrets.GITHUB_PRIVATE_KEY }}
+          GITHUB_APP_ID: ${{ secrets.HELIOS_APP_ID }}
+          GITHUB_PRIVATE_KEY: ${{ secrets.HELIOS_APP_PRIVATE_KEY }}
           TARGET_OWNER: Ismail-Benali
           TARGET_REPO: HELIOS-NET
         run: node scripts/create-installation-token.mjs
