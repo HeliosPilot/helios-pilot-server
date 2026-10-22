@@ -1,10 +1,10 @@
-import { kv } from '../services/kv.js';
+import { kv } from '../services/kv';
 import {
   enforceRateLimit,
   isDashboardAuthorized,
   isDashboardConfigured,
   rateLimitResponse
-} from '../services/security.js';
+} from '../services/security';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');

@@ -1,5 +1,5 @@
 import { Groq } from "groq-sdk";
-import { captureException } from "./sentry.js";
+import { captureException } from "./sentry";
 import fetch from "node-fetch";
 
 /**
@@ -25,7 +25,7 @@ async function callGroqModel(systemInstruction, userPrompt) {
     temperature: 0.3,
     max_completion_tokens: 1024,
     top_p: 0.95,
-  });
+  } as any);
   return chatCompletion.choices[0]?.message?.content?.trim();
 }
 
@@ -49,7 +49,7 @@ async function callOpenRouterModel(systemInstruction, userPrompt) {
     })
   });
 
-  const data = await response.json();
+  const data: any = await response.json();
   if (!response.ok) throw new Error(data.error?.message || "OpenRouter error");
   return data.choices[0]?.message?.content?.trim();
 }

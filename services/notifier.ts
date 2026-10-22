@@ -1,4 +1,4 @@
-import { sendTelegramMessage } from './telegram.js';
+import { sendTelegramMessage } from './telegram';
 
 export async function sendUnifiedNotification(message, inline_keyboard = null) {
   // Telegram

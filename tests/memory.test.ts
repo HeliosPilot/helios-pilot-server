@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { normalizeEntries } from '../api/memory.js';
+import { normalizeEntries } from '../api/memory';
 
 test('normalizeEntries rejects non-arrays', () => {
   assert.strictEqual(normalizeEntries('not-an-array'), null);

@@ -1,4 +1,4 @@
-﻿import handler from '../api/index.js';
+﻿import handler from '../api/index';
 
 const text = process.argv[2] || '/start';
 const req = {

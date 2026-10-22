@@ -1,15 +1,18 @@
-import { kv } from '../services/kv.js';
-import { initSentry, captureException } from '../services/sentry.js';
-import { sendTelegramMessage, answerTelegramCallback, setTelegramMessageReaction } from '../services/telegram.js';
-import { verifyGitHubSignature, addCommentToIssueOrPR, parseAndFetchGitHubUrl, fetchAppInstallationsAndRepos, getInstallationOctokitForRepo } from '../services/github.js';
-import { processSmartAIResponse } from '../services/ai.js';
-import { auditEvent, enforceRateLimit, isDashboardAuthorized, rateLimitResponse } from '../services/security.js';
-import { recordHealthSnapshot } from '../services/metrics.js';
+import { kv } from '../services/kv';
+import { initSentry, captureException } from '../services/sentry';
+import { sendTelegramMessage, answerTelegramCallback, setTelegramMessageReaction } from '../services/telegram';
+import { verifyGitHubSignature, addCommentToIssueOrPR, parseAndFetchGitHubUrl, fetchAppInstallationsAndRepos, getInstallationOctokitForRepo } from '../services/github';
+import { processSmartAIResponse } from '../services/ai';
+import { auditEvent, enforceRateLimit, isDashboardAuthorized, rateLimitResponse } from '../services/security';
+import { recordHealthSnapshot } from '../services/metrics';
+import { sendUnifiedNotification } from '../services/notifier';
+import type { ApiRequest, ApiResponse } from '../types/http';
+import type { HeliosMemory } from '../types/memory';
 
 // Initialize Sentry error tracking
 initSentry();
 
-const DEFAULT_MEMORY = {
+const DEFAULT_MEMORY: HeliosMemory = {
   creator: "Ismail-Benali (H3l!0s_T3k)",
   projectName: "HELIOS-NET & HeliosPilot Ecosystem",
   coreStack: "Node.js, Vercel Serverless, Groq, OpenRouter, GitHub App, Telegram API, Vercel KV, Sentry",
@@ -21,9 +24,9 @@ const DEFAULT_MEMORY = {
 };
 
 // دالة للحصول على ذاكرة الفريق بناءً على الـ ChatID
-async function getTeamMemory(chatId) {
+async function getTeamMemory(chatId: string | number): Promise<HeliosMemory> {
   try {
-    const mem = await kv.get(`team_memory_${chatId}`);
+    const mem = (await kv.get(`team_memory_${chatId}`)) as HeliosMemory | null;
     return mem ? mem : { ...DEFAULT_MEMORY, dynamicMemory: [], userActiveRepos: {}, admins: [] };
   } catch (err) {
     captureException(err, { context: "getTeamMemory" });
@@ -32,7 +35,7 @@ async function getTeamMemory(chatId) {
 }
 
 // دالة لحفظ ذاكرة الفريق
-async function saveTeamMemory(chatId, mem) {
+async function saveTeamMemory(chatId: string | number, mem: HeliosMemory): Promise<void> {
   try {
     await kv.set(`team_memory_${chatId}`, mem);
   } catch (err) {
@@ -40,14 +43,14 @@ async function saveTeamMemory(chatId, mem) {
   }
 }
 
-export function isAdmin(chatId, memory) {
-  return (memory.admins && memory.admins.includes(chatId.toString())) || chatId.toString() === process.env.TELEGRAM_CHAT_ID;
+export function isAdmin(chatId: string | number, memory: { admins?: string[] }): boolean {
+  return Boolean(memory.admins?.includes(chatId.toString())) || chatId.toString() === process.env.TELEGRAM_CHAT_ID;
 }
 
 // دالة للحصول على الذاكرة العامة (القديمة)
-async function getRuntimeMemory() {
+async function getRuntimeMemory(): Promise<HeliosMemory> {
   try {
-    const mem = await kv.get("helios_runtime_memory");
+    const mem = (await kv.get("helios_runtime_memory")) as HeliosMemory | null;
     return mem ? mem : DEFAULT_MEMORY;
   } catch (err) {
     captureException(err, { context: "getRuntimeMemory" });
@@ -55,7 +58,7 @@ async function getRuntimeMemory() {
   }
 }
 
-async function saveRuntimeMemory(mem) {
+async function saveRuntimeMemory(mem: HeliosMemory): Promise<void> {
   try {
     await kv.set("helios_runtime_memory", mem);
   } catch (err) {
@@ -82,11 +85,18 @@ async function createTrelloCard(title, description) {
 
 
 // نظام فهرست ذكي (Vector-like index) للبحث في الكود
-async function indexCodebase(owner, repo, files) {
-  const index = {};
+interface QueuedNotification {
+  message: string;
+  timestamp: number;
+}
+
+async function indexCodebase(owner: string, repo: string, files: string[]) {
+  const index: Record<string, string[]> = {};
   for (const path of files) {
     const octokit = await getInstallationOctokitForRepo(owner, repo);
+    if (!octokit) continue;
     const { data: file } = await octokit.repos.getContent({ owner, repo, path });
+    if (Array.isArray(file) || !("content" in file) || typeof file.content !== "string") continue;
     const content = Buffer.from(file.content, 'base64').toString('utf8');
     
     // استخراج كلمات مفتاحية (بسيطة جداً)
@@ -104,15 +114,15 @@ async function searchCodebase(owner, repo, query) {
 }
 
 // تجميع التنبيهات في KV بدلاً من الإرسال الفوري
-async function queueNotification(chatId, message) {
-  const queue = await kv.get(`notification_queue_${chatId}`) || [];
+async function queueNotification(chatId: string, message: string): Promise<void> {
+  const queue = ((await kv.get(`notification_queue_${chatId}`)) as QueuedNotification[] | null) || [];
   queue.push({ message, timestamp: Date.now() });
   await kv.set(`notification_queue_${chatId}`, queue);
 }
 
 // دالة جديدة لتسليم التنبيهات المجمعة
-async function flushNotifications(chatId) {
-  const queue = await kv.get(`notification_queue_${chatId}`) || [];
+async function flushNotifications(chatId: string): Promise<void> {
+  const queue = ((await kv.get(`notification_queue_${chatId}`)) as QueuedNotification[] | null) || [];
   if (queue.length === 0) return;
   
   const summary = `🔔 **ملخص تنبيهات HeliosPilot (الساعة الماضية):**\n\n` + queue.map(q => `• ${q.message}`).join("\n\n");
@@ -209,6 +219,10 @@ async function fetchCodebaseContextForRAG(owner = "Ismail-Benali", repo = "HELIO
     for (const path of keyFiles) {
       try {
         const { data: file } = await octokit.repos.getContent({ owner, repo, path });
+        if (Array.isArray(file) || !("content" in file) || typeof file.content !== "string") {
+          context += `\n--- File: ${path} --- (Not a readable file)\n`;
+          continue;
+        }
         const content = Buffer.from(file.content, 'base64').toString('utf8');
         context += `\n--- File Content: ${path} ---\n${content.substring(0, 3000)}\n`;
       } catch (e) {
@@ -237,7 +251,7 @@ async function handleTaskFix(chatId, owner, repo, taskType, filePath, memory) {
     await sendTelegramMessage(chatId, `🛠️ **HeliosPilot ${taskType} Engine** جاري العمل...`);
     const fix = await processSmartAIResponse(`Generate a ${taskType} fix for HELIOS-NET on file: ${filePath}. Provide code only, maintain existing style, English comments only.`, memory.dynamicMemory);
     
-    const result = await import('../services/github.js').then(m => m.createAutomatedPR(owner, repo, taskType, fix, filePath));
+    const result = await import('../services/github').then(m => m.createAutomatedPR(owner, repo, taskType, fix, filePath));
     await sendTelegramMessage(chatId, result);
   } catch (err) {
     captureException(err, { context: "handleTaskFix" });
@@ -409,7 +423,7 @@ export default async function handler(req, res) {
         
         await sendTelegramMessage(queryChatId, `2. تم توليد الحل. جاري التواصل مع GitHub لإنشاء فرع (Branch) جديد وفتح Pull Request...`);
         
-        const result = await import('../services/github.js').then(m => m.createAutomatedPR(owner, repo, taskType, fix, filePath));
+        const result = await import('../services/github').then(m => m.createAutomatedPR(owner, repo, taskType, fix, filePath));
         
         await sendTelegramMessage(queryChatId, `3. تمت المهمة بنجاح! 🎉\n\n${result}`);
       } else if (data.startsWith("mergepr:")) {
@@ -439,6 +453,8 @@ export default async function handler(req, res) {
       // حلقة المراجعة الأمنية التلقائية عند فتح أو تحديث PR
       const ghPayload = payload;
       const event = req.headers?.['x-github-event'] || payload?.event || null;
+      const targetNotifyChatId = envChatId;
+      const memory = await getRuntimeMemory();
       if (event === "pull_request" && (ghPayload.action === "opened" || ghPayload.action === "synchronized")) {
         const prNumber = ghPayload.pull_request.number;
         const owner = ghPayload.repository.owner.login;
@@ -446,14 +462,14 @@ export default async function handler(req, res) {
         
         await sendTelegramMessage(envChatId, `🛡️ **HeliosPilot Security Scanner:** جاري فحص الـ PR #${prNumber} بحثاً عن ثغرات...`);
         
-        const prFiles = await import('../services/github.js').then(m => m.parseAndFetchGitHubUrl(`${ghPayload.pull_request.html_url}`));
+        const prFiles = await import('../services/github').then(m => m.parseAndFetchGitHubUrl(`${ghPayload.pull_request.html_url}`));
         const reviewResult = await processSmartAIResponse(`Analyze this PR code for OWASP security vulnerabilities. If you find any, explain them and provide a fix. If clean, reply with "SECURE".\n${prFiles}`, []);
         
         if (reviewResult.includes("SECURE")) {
           await sendTelegramMessage(envChatId, `✅ **الـ PR #${prNumber} آمن تماماً.**`);
         } else {
           await sendTelegramMessage(envChatId, `🚨 **ثغرة أمنية مكتشفة في الـ PR #${prNumber}!**\n${reviewResult}`);
-          await import('../services/github.js').then(m => postHumanFriendlyComment(owner, repo, prNumber, `🚨 **HeliosPilot Security Alert:**\n${reviewResult}`));
+          await addCommentToIssueOrPR(ghPayload.pull_request.html_url, `🚨 **HeliosPilot Security Alert:**\n${reviewResult}`);
         }
         return res.status(200).json({ success: true });
       }
@@ -713,7 +729,7 @@ export default async function handler(req, res) {
         const codebaseContext = await fetchCodebaseContextForRAG(owner, repo);
         const wikiContent = await processSmartAIResponse(`Generate a comprehensive WIKI.md page for ${activeRepo} based on:\n${codebaseContext}`, memory.dynamicMemory);
         
-        const result = await import('../services/github.js').then(m => m.createFileInRepo(owner, repo, "WIKI.md", wikiContent, "📝 Create WIKI.md automatically"));
+        const result = await import('../services/github').then(m => m.createFileInRepo(owner, repo, "WIKI.md", wikiContent, "📝 Create WIKI.md automatically"));
         await sendTelegramMessage(targetChatId, result);
         return res.status(200).json({ success: true });
       }
@@ -725,13 +741,13 @@ export default async function handler(req, res) {
         const [owner, repo] = activeRepo.split("/");
         
         try {
-          const repoOctokit = await import('../services/github.js').then(m => m.getInstallationOctokitForRepo(owner, repo));
+          const repoOctokit = await import('../services/github').then(m => m.getInstallationOctokitForRepo(owner, repo));
           if (repoOctokit) {
               const { data: alerts } = await repoOctokit.codeScanning.listAlertsForRepo({ owner, repo, state: "open" });
               if (alerts.length > 0) {
                   const alert = alerts[0];
                   const fix = await processSmartAIResponse(`Generate a security fix for: ${alert.rule.description}. Provide code only.`, memory.dynamicMemory);
-                  const result = await import('../services/github.js').then(m => m.createAutomatedPR(owner, repo, "security-fix", fix, alert.most_recent_instance.location.path));
+                  const result = await import('../services/github').then(m => m.createAutomatedPR(owner, repo, "security-fix", fix, alert.most_recent_instance.location.path));
                   await sendTelegramMessage(targetChatId, result);
               } else {
                   await sendTelegramMessage(targetChatId, "✅ لا توجد ثغرات مفتوحة في المستودع المحدد!");

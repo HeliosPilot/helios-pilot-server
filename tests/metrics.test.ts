@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { bucketStart, normalizeLatency, summarizeHealth } from '../services/metrics.js';
+import { bucketStart, normalizeLatency, summarizeHealth } from '../services/metrics';
 
 test('bucketStart aligns timestamps to five-minute buckets', () => {
   const start = bucketStart(Date.UTC(2026, 0, 1, 12, 7, 42));

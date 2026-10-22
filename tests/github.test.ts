@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import crypto from 'node:crypto';
-import { verifyGitHubSignature } from '../services/github.js';
+import { verifyGitHubSignature } from '../services/github';
 
 function signatureFor(secret, body) {
   return `sha256=${crypto.createHmac('sha256', secret).update(JSON.stringify(body)).digest('hex')}`;

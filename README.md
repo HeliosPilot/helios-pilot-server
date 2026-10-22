@@ -16,20 +16,23 @@ HeliosPilot is a serverless Telegram bot and dashboard for monitoring GitHub rep
 
 ```text
 api/
-  index.js          Main Telegram + GitHub webhook handler
-  dashboard.js      Token-protected dashboard HTML endpoint
-  memory.js         Token-protected memory read/write endpoint
-  audit.js          Token-protected audit log endpoint
-  metrics.js        Token-protected health/latency history endpoint
+  index.ts          Main Telegram + GitHub webhook handler
+  dashboard.ts      Token-protected dashboard HTML endpoint
+  memory.ts         Token-protected memory read/write endpoint
+  audit.ts          Token-protected audit log endpoint
+  metrics.ts        Token-protected health/latency history endpoint
 services/
-  security.js       Token comparison, rate limiting, audit logging
-  metrics.js        Health snapshots and latency history
-  ai.js             Groq / OpenRouter fallback
-  github.js         GitHub App + REST integration
-  memory.js         Vercel KV memory storage
-  sentry.js         Error tracking
-  telegram.js       Telegram Bot API
-  trello.js         Trello integration
+  security.ts       Token comparison, rate limiting, audit logging
+  metrics.ts        Health snapshots and latency history
+  ai.ts             Groq / OpenRouter fallback
+  github.ts         GitHub App + REST integration
+  memory.ts         Vercel KV memory storage
+  sentry.ts         Error tracking
+  telegram.ts       Telegram Bot API
+  trello.ts         Trello integration
+types/
+  http.ts           Shared API request/response types
+  memory.ts         Shared runtime memory type
 views/
   dashboard.html    Dashboard UI
 index.html          English landing page

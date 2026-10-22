@@ -1,8 +1,8 @@
-import { sendTelegramMessage } from '../../services/telegram.js';
-import { getInstallationOctokitForRepo, parseAndFetchGitHubUrl } from '../../services/github.js';
-import { processSmartAIResponse } from '../../services/ai.js';
-import { createTrelloCard } from '../index.js';
-import { captureException } from '../../services/sentry.js';
+import { sendTelegramMessage } from '../../services/telegram';
+import { getInstallationOctokitForRepo, parseAndFetchGitHubUrl } from '../../services/github';
+import { processSmartAIResponse } from '../../services/ai';
+import { createTrelloCard } from '../../services/trello';
+import { captureException } from '../../services/sentry';
 
 export async function handleGitHubWebhook(event, ghPayload, targetNotifyChatId, envChatId, memory) {
   const repoName = ghPayload.repository?.full_name || "HELIOS-NET";

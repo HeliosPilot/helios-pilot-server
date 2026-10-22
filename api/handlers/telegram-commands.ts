@@ -1,8 +1,8 @@
-import { sendTelegramMessage } from '../../services/telegram.js';
-import { getTeamMemory, saveTeamMemory, isAdmin } from '../index.js';
-import { processSmartAIResponse } from '../../services/ai.js';
-import { fetchAppInstallationsAndRepos, fetchCodebaseContextForRAG, createBranch, createAutomatedPR } from '../../services/github.js';
-import { generateHardenedFeature } from '../../services/feature-agent.js';
+import { sendTelegramMessage } from '../../services/telegram';
+import { getTeamMemory, saveTeamMemory, isAdmin } from '../../services/memory';
+import { processSmartAIResponse } from '../../services/ai';
+import { fetchAppInstallationsAndRepos, fetchCodebaseContextForRAG, createBranch, createAutomatedPR } from '../../services/github';
+import { generateHardenedFeature } from '../../services/feature-agent';
 
 export async function handleTelegramCommand(cleanCmd, targetChatId, userText, userTextLower, memory) {
   if (cleanCmd === "/status") {

@@ -1,4 +1,4 @@
-import { kv } from './kv.js';
+import { kv } from './kv';
 
 const HEALTH_KEY = 'helios_health_history';
 const LATENCY_KEY = 'helios_latency_history';

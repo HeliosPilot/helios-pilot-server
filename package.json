@@ -2,20 +2,27 @@
   "name": "heliospilot",
   "version": "1.0.0",
   "description": "Telegram-GitHub integration bot with dynamic memory and dual-AI fallback",
-  "main": "api/index.js",
+  "main": "api/index.ts",
   "type": "module",
   "dependencies": {
-    "groq-sdk": "^0.7.0",
-    "node-fetch": "^3.3.2",
     "@octokit/rest": "^20.0.2",
+    "@sentry/node": "^8.0.0",
     "@vercel/kv": "^1.0.1",
-    "@sentry/node": "^8.0.0"
+    "groq-sdk": "^0.7.0",
+    "node-fetch": "^3.3.2"
   },
   "engines": {
     "node": ">=18.x"
   },
   "scripts": {
-    "check": "node --check api/index.js api/dashboard.js api/memory.js api/audit.js api/metrics.js services/security.js services/metrics.js services/kv.js services/ai.js services/github.js services/memory.js",
-    "test": "node --test tests/*.test.js"
+    "check": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "build": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
   }
 }

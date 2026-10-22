@@ -3,8 +3,8 @@ import {
   isDashboardAuthorized,
   isDashboardConfigured,
   rateLimitResponse
-} from '../services/security.js';
-import { getMetrics, normalizeLatency, recordLatency } from '../services/metrics.js';
+} from '../services/security';
+import { getMetrics, normalizeLatency, recordLatency } from '../services/metrics';
 
 function parseBody(body) {
   if (!body) return {};

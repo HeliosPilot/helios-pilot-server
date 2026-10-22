@@ -5,7 +5,7 @@ import {
   isDashboardAuthorized,
   isDashboardConfigured,
   rateLimitResponse
-} from '../services/security.js';
+} from '../services/security';
 
 export default async function handler(req, res) {
   if (!isDashboardConfigured()) {

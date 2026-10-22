@@ -8,7 +8,7 @@ export async function sendTelegramMessage(chatId, text, replyMarkup = null) {
   for (let i = 0; i < text.length; i += MAX_LENGTH) {
     const chunk = text.substring(i, i + MAX_LENGTH);
     try {
-      const bodyData = {
+      const bodyData: { chat_id: any; text: any; reply_markup?: any } = {
         chat_id: chatId,
         text: chunk
       };

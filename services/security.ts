@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { kv } from './kv.js';
+import { kv } from './kv';
 
 const MAX_AUDIT_ENTRIES = 200;
 

@@ -1,5 +1,5 @@
-import { processSmartAIResponse } from './ai.js';
-import { captureException } from './sentry.js';
+import { processSmartAIResponse } from './ai';
+import { captureException } from './sentry';
 
 export async function generateHardenedFeature(requirement, codebaseContext, memory) {
   try {

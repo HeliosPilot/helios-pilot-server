@@ -125,6 +125,9 @@ export async function createAutomatedPR(owner, repo, taskType, fixContent, fileP
     });
 
     const { data: file } = await repoOctokit.repos.getContent({ owner, repo, path: filePath });
+    if (Array.isArray(file) || typeof file.sha !== "string") {
+      throw new Error(`GitHub path is not a file: ${filePath}`);
+    }
     await repoOctokit.repos.createOrUpdateFileContents({
       owner,
       repo,
@@ -266,6 +269,43 @@ export async function parseAndFetchGitHubUrl(url) {
     return "Invalid or unsupported GitHub URL.";
   } catch (error) {
     return `Error reading from GitHub: ${error.message}`;
+  }
+}
+
+export async function fetchCodebaseContextForRAG(owner = "Ismail-Benali", repo = "HELIOS-NET") {
+  try {
+    const octokit = await getInstallationOctokitForRepo(owner, repo);
+    if (!octokit) return "Repository access failed: No Octokit instance.";
+
+    const keyFiles = ["api/index.js", "services/ai.js", "services/github.js", "package.json"];
+    let context = `Repository Context for HELIOS-NET:\n`;
+
+    try {
+      const { data: contents } = await octokit.repos.getContent({ owner, repo, path: "" });
+      const names = Array.isArray(contents) ? contents.map((entry) => entry.name).join(", ") : "Main entry";
+      context += "Root Files: " + names + "\n\n";
+    } catch {
+      context += "Could not fetch root file structure.\n";
+    }
+
+    for (const path of keyFiles) {
+      try {
+        const { data: file } = await octokit.repos.getContent({ owner, repo, path });
+        if (Array.isArray(file) || !("content" in file) || typeof file.content !== "string") {
+          context += `\n--- File: ${path} --- (Not a readable file)\n`;
+          continue;
+        }
+        const content = Buffer.from(file.content, "base64").toString("utf8");
+        context += `\n--- File Content: ${path} ---\n${content.substring(0, 3000)}\n`;
+      } catch (error) {
+        context += `\n--- File: ${path} --- (Error: ${error.message})\n`;
+      }
+    }
+
+    return context;
+  } catch (error) {
+    console.error("fetchCodebaseContextForRAG failed:", error);
+    return "Repository context fetch failed: " + error.message;
   }
 }
 

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { isAdmin } from '../api/index.js';
+import { isAdmin } from '../api/index';
 
 test('isAdmin returns true for main admin', () => {
     process.env.TELEGRAM_CHAT_ID = '12345';

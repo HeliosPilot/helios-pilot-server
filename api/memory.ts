@@ -1,4 +1,4 @@
-import { getRuntimeMemory, saveRuntimeMemory } from '../services/memory.js';
+import { getRuntimeMemory, saveRuntimeMemory } from '../services/memory';
 import {
   auditEvent,
   enforceRateLimit,
@@ -6,7 +6,7 @@ import {
   isDashboardConfigured,
   rateLimitResponse,
   safeEqual
-} from '../services/security.js';
+} from '../services/security';
 
 const MAX_ENTRIES = 25;
 const MAX_ENTRY_LENGTH = 2000;
