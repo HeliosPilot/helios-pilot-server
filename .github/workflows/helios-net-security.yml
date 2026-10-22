@@ -27,13 +27,13 @@ jobs:
       - name: Check required configuration
         id: preflight
         env:
-          GITHUB_APP_ID: ${{ secrets.HELIOS_APP_ID }}
-          GITHUB_PRIVATE_KEY: ${{ secrets.HELIOS_APP_PRIVATE_KEY }}
+          HELIOS_APP_ID: ${{ secrets.HELIOS_APP_ID }}
+          HELIOS_APP_PRIVATE_KEY: ${{ secrets.HELIOS_APP_PRIVATE_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           CODEX_SECURITY_MODEL: ${{ vars.CODEX_SECURITY_MODEL }}
         run: |
           missing=0
-          for name in GITHUB_APP_ID GITHUB_PRIVATE_KEY OPENROUTER_API_KEY CODEX_SECURITY_MODEL; do
+          for name in HELIOS_APP_ID HELIOS_APP_PRIVATE_KEY OPENROUTER_API_KEY CODEX_SECURITY_MODEL; do
             if [ -z "${!name}" ]; then
               echo "::warning::$name is not configured; skipping HELIOS-NET security scan."
               missing=1
