@@ -152,15 +152,19 @@ Dashboard capabilities:
 - `approve:` and `mergepr:` callbacks require an admin, a HELIOS-NET repository, and sanitized task/file/PR values. Only open `helios-pilot/*` branches can be merged.
 - Sentry scrubs authorization, cookie, dashboard, Telegram, and GitHub signature headers. Trace sampling defaults to `0.1`.
 - The dashboard response includes a Content Security Policy and other hardening headers.
+- CodeQL runs on pushes, pull requests, and a weekly schedule with the `security-extended` query suite.
+- All GitHub Actions are pinned to full commit SHAs, and CI rejects unpinned actions through `npm run check:actions`.
+- Dependabot checks npm dependencies and pinned GitHub Actions weekly.
 
 ## Testing
 
 ```bash
 npm run check
+npm run check:actions
 npm test
 ```
 
-CI runs both commands on every push and pull request to `main`.
+CI runs these checks on every push and pull request to `main`.
 
 ## License
 
