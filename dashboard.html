@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -20,7 +20,7 @@ iframe{width:100%;height:85vh;border:0;border-radius:18px;margin-top:18px}
 <body>
 <div class="card" id="gate">
   <h1>Dashboard Access</h1>
-  <p>أدخل رمز الوصول (DASHBOARD_TOKEN).</p>
+  <p>Enter your access token (DASHBOARD_TOKEN).</p>
   <input id="token" type="password" placeholder="Access token">
   <button id="open">Open Dashboard</button>
   <div class="error" id="error"></div>
@@ -39,14 +39,16 @@ if (saved) openDashboard(saved);
 document.getElementById('open').addEventListener('click', () => openDashboard(tokenInput.value.trim()));
 async function openDashboard(token) {
   if (!token) { error.textContent = 'Token required'; return; }
-  const url = '/api/dashboard?token=' + encodeURIComponent(token);
   try {
-    const response = await fetch(url);
+    const response = await fetch('/api/dashboard', {
+      headers: { 'x-dashboard-token': token }
+    });
     if (!response.ok) throw new Error((await response.text()) || 'Invalid token');
+    const html = await response.text();
     sessionStorage.setItem('dashboardToken', token);
     gate.style.display = 'none';
     frameWrap.style.display = 'block';
-    frame.src = url;
+    frame.srcdoc = html;
   } catch (e) {
     error.textContent = e.message;
   }

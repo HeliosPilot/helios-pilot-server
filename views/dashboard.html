@@ -1,312 +1,1457 @@
 ﻿<!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HeliosPilot Dashboard</title>
+<title>HeliosPilot Control Center</title>
 <meta name="theme-color" content="#000000">
 <style>
-:root{--bg:#000;--panel:#0a0a0a;--text:#fff;--muted:#a1a1aa;--border:rgba(255,255,255,.12);--accent:#22c55e;--font-sans:"Segoe UI","Helvetica Neue",Arial,sans-serif;--font-mono:"Cascadia Code","Fira Code",Consolas,monospace}
+:root{--bg:#000;--panel:#0a0a0a;--surface:#050505;--text:#fff;--muted:#a1a1aa;--border:rgba(255,255,255,.12);--soft:rgba(255,255,255,.08);--hover:rgba(255,255,255,.04);--accent:#22c55e;--danger:#ef4444;--font-sans:"Segoe UI","Helvetica Neue",Arial,sans-serif;--font-mono:"Cascadia Code","Fira Code",Consolas,monospace}
 *{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
 body{font-family:var(--font-sans);background:radial-gradient(circle at top,rgba(255,255,255,.06),transparent 35%),var(--bg);color:var(--text);min-height:100vh}
-.container{width:min(1280px,94%);margin:0 auto;padding:28px 0 40px}
-nav{display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid var(--border);margin-bottom:24px}
-.brand{font-weight:900;letter-spacing:.02em;font-size:1.05rem}
-.hero{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:end;margin-bottom:24px}
-.hero h1{font-size:clamp(1.9rem,4vw,2.8rem);letter-spacing:-.03em;margin:0 0 6px}
-.hero p{color:var(--muted);max-width:760px}
-.status-pill{padding:10px 14px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--muted);font-size:.9rem;white-space:nowrap}
-.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
-.card{background:linear-gradient(180deg,rgba(15,15,15,.96),rgba(5,5,5,.9));border:1px solid var(--border);border-radius:18px;padding:18px;transition:transform .15s ease}
-.card:hover{transform:translateY(-2px)}
-.label{color:var(--muted);font-size:.84rem;margin-bottom:8px}
-.value{font-size:1.2rem;font-weight:900;line-height:1.2}
-.section-title{display:flex;justify-content:space-between;align-items:end;gap:16px;margin:26px 0 12px}
-.section-title h2{font-size:1.25rem;letter-spacing:-.01em}
-.eyebrow{color:var(--muted);font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;margin-bottom:6px}
-.hint{color:var(--muted);font-size:.85rem}
-.panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}
-.section{margin-top:24px;display:grid;grid-template-columns:1.15fr .85fr;gap:18px}
-.panel{background:linear-gradient(180deg,rgba(15,15,15,.96),rgba(5,5,5,.9));border:1px solid var(--border);border-radius:20px;padding:20px}
-.panel h2{font-size:1.2rem;margin-bottom:0}
-.panel .hint{white-space:nowrap}
-.command-wrap{display:grid;grid-template-columns:1fr auto auto;gap:10px;margin-top:12px}
-.command-input{background:#0a0a0a;border:1px solid var(--border);border-radius:12px;padding:12px;color:#fff;font-family:var(--font-mono)}
-.command-btn{padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#fff;color:#000;font-weight:800;cursor:pointer}
-.command-btn.secondary{background:transparent;color:#fff}
-.terminal{background:#050505;border:1px solid var(--border);border-radius:16px;padding:16px;font-family:var(--font-mono);font-size:.88rem;color:#e5e5e5;min-height:150px;white-space:pre-wrap;word-break:break-word;margin-top:12px}
-.menu{background:#050505;border:1px solid var(--border);border-radius:16px;padding:14px;font-family:var(--font-mono);font-size:.86rem;color:#e5e5e5;white-space:pre-wrap;margin-top:12px}
-.chart{display:grid;gap:10px;margin-top:12px}
-.bar-row{display:grid;grid-template-columns:92px 1fr 44px;gap:10px;align-items:center}
-.bar{height:10px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
-.bar>span{display:block;height:100%;background:linear-gradient(90deg,#fff,#71717a);border-radius:999px}
-.export-btn{margin-top:14px;padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:transparent;color:#fff;cursor:pointer}
-.memory-grid{display:grid;grid-template-columns:1.4fr .6fr;gap:18px;margin-top:8px}
-.memory-textarea{width:100%;min-height:180px;background:#050505;border:1px solid var(--border);border-radius:14px;padding:14px;color:#e5e5e5;font-family:var(--font-mono);font-size:.88rem;line-height:1.6;resize:vertical}
-.memory-actions{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
-.memory-meta{color:#e5e5e5;font-family:var(--font-mono);font-size:.86rem;word-break:break-word;margin-bottom:14px}
-footer{margin-top:30px;padding-top:16px;border-top:1px solid var(--border);color:var(--muted);font-size:.84rem;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
-@media(max-width:1100px){.grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:980px){.grid{grid-template-columns:repeat(2,1fr)}.section{grid-template-columns:1fr}.memory-grid{grid-template-columns:1fr}}
-@media(max-width:620px){.grid{grid-template-columns:1fr}.command-wrap{grid-template-columns:1fr}.hero{grid-template-columns:1fr}}
+button,input,textarea,select{font:inherit}
+button{color:inherit}
+a{color:inherit;text-decoration:none}
+[hidden]{display:none!important}
+.app-shell{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:100vh}
+.sidebar{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:24px;padding:20px 16px;border-right:1px solid var(--border);background:var(--surface);z-index:30}
+.brand{display:flex;align-items:center;gap:10px;font-weight:900;letter-spacing:.02em;padding:4px 8px}
+.brand-mark{display:grid;place-items:center;width:32px;height:32px;border:1px solid var(--border);border-radius:10px;color:var(--accent);font-family:var(--font-mono);font-size:.9rem}
+.brand-sub{color:var(--muted);font-weight:600;font-size:.78rem;display:block;margin-top:1px}
+.side-nav{display:grid;gap:4px}
+.nav-link{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;color:var(--muted);border:1px solid transparent;background:transparent;cursor:pointer;font-size:.9rem;text-align:left;width:100%}
+.nav-link svg{width:17px;height:17px;flex:0 0 auto}
+.nav-link:hover{color:var(--text);background:var(--hover)}
+.nav-link.active{color:var(--text);background:rgba(255,255,255,.06);border-color:var(--border)}
+.sidebar-foot{margin-top:auto;display:grid;gap:10px}
+.session-card{border:1px solid var(--border);border-radius:14px;padding:12px;background:var(--panel)}
+.session-row{display:flex;align-items:center;gap:8px;font-size:.84rem}
+.session-meta{color:var(--muted);font-size:.74rem;margin-top:5px;font-family:var(--font-mono)}
+.main-wrap{min-width:0;display:flex;flex-direction:column}
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 24px;border-bottom:1px solid var(--border);background:var(--bg)}
+.topbar-title{min-width:0}
+.topbar-title h1{font-size:1.1rem;letter-spacing:-.01em;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar-actions{display:flex;align-items:center;gap:8px}
+.search-trigger{display:flex;align-items:center;gap:8px;min-width:230px;padding:9px 11px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--muted);cursor:pointer;font-size:.82rem;text-align:left}
+.search-trigger svg{width:15px;height:15px}
+.search-trigger kbd{margin-left:auto}
+.icon-btn{display:grid;place-items:center;width:38px;height:38px;border-radius:11px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;flex:0 0 auto}
+.icon-btn:hover{color:var(--text);background:var(--hover)}
+.icon-btn svg{width:17px;height:17px}
+#menuToggle{display:none}
+main{width:100%;max-width:1420px;padding:26px 28px 44px}
+.page-section{scroll-margin-top:88px;margin-bottom:36px}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:16px}
+.page-head h2{font-size:1.45rem;letter-spacing:-.02em}
+.page-head p{color:var(--muted);font-size:.88rem;margin-top:5px;max-width:720px;line-height:1.5}
+.head-actions{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.eyebrow{color:var(--muted);font-size:.7rem;letter-spacing:.16em;text-transform:uppercase}
+.status-pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;border:1px solid var(--border);background:var(--hover);color:var(--muted);font-size:.82rem;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:999px;background:var(--accent);display:inline-block;flex:0 0 auto}
+.dot.offline{background:var(--danger)}
+.hint{color:var(--muted);font-size:.8rem}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:16px}
+.kpi{background:linear-gradient(180deg,rgba(15,15,15,.96),rgba(5,5,5,.9));border:1px solid var(--border);border-radius:18px;padding:17px;min-height:142px;display:flex;flex-direction:column}
+.kpi-top{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--muted);font-size:.8rem}
+.kpi-value{font-size:1.7rem;font-weight:900;letter-spacing:-.03em;margin-top:10px;line-height:1}
+.kpi-meta{color:var(--muted);font-size:.76rem;margin-top:5px}
+.spark{margin-top:auto;padding-top:10px;height:44px;display:flex;align-items:flex-end}
+.spark svg{width:100%;height:36px;display:block}
+.spark-empty{color:var(--muted);font-size:.72rem}
+.kpi.loading .kpi-value,.kpi.loading .kpi-meta{color:transparent;background:var(--soft);border-radius:7px;width:65%;animation:pulse 1.4s ease-in-out infinite}
+.kpi.loading .kpi-value{height:26px}
+.kpi.loading .kpi-meta{height:12px;width:45%}
+@keyframes pulse{0%,100%{opacity:.45}50%{opacity:.9}}
+.overview-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:16px;margin-bottom:16px}
+.panel{background:linear-gradient(180deg,rgba(15,15,15,.96),rgba(5,5,5,.9));border:1px solid var(--border);border-radius:18px;padding:18px;min-width:0}
+.panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
+.panel-head h3{font-size:1.05rem;margin-top:2px}
+.link-btn{background:transparent;border:0;color:var(--muted);cursor:pointer;font-size:.8rem;padding:4px 0}
+.link-btn:hover{color:var(--text)}
+.service-list{display:grid;gap:8px}
+.service-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.service-main{display:flex;align-items:center;gap:10px;min-width:0}
+.service-name{font-size:.86rem;font-weight:700}
+.service-detail{color:var(--muted);font-size:.72rem;margin-top:2px}
+.service-state{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:.78rem;white-space:nowrap}
+.activity-list{display:grid;gap:8px}
+.activity-row{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;padding:10px 0;border-bottom:1px solid var(--border)}
+.activity-row:last-child{border-bottom:0;padding-bottom:0}
+.activity-time{color:var(--muted);font-family:var(--font-mono);font-size:.7rem;white-space:nowrap;padding-top:2px}
+.activity-event{font-size:.82rem;font-family:var(--font-mono)}
+.activity-detail{color:var(--muted);font-size:.76rem;margin-top:3px;word-break:break-word}
+.uptime-panel{margin-top:0}
+.uptime-strip{display:flex;gap:3px;align-items:stretch;height:42px;margin:4px 0 10px}
+.uptime-tick{flex:1;min-width:2px;border-radius:3px;background:var(--soft)}
+.uptime-tick.online{background:var(--accent)}
+.uptime-tick.offline{background:var(--danger)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;color:var(--muted);font-size:.74rem}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend-dot{width:8px;height:8px;border-radius:999px;background:var(--accent);display:inline-block}
+.legend-dot.offline{background:var(--danger)}
+.legend-dot.empty{background:var(--soft)}
+.ops-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
+.command-menu{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.cmd-chip{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:11px;border:1px solid var(--border);background:var(--surface);color:#e5e5e5;cursor:pointer;font-family:var(--font-mono);font-size:.78rem;text-align:left;transition:transform .15s ease,background .15s ease}
+.cmd-chip:hover{transform:translateY(-1px);background:var(--hover)}
+.cmd-num{display:grid;place-items:center;width:20px;height:20px;border-radius:6px;border:1px solid var(--border);color:var(--muted);font-size:.68rem;flex:0 0 auto}
+.command-wrap{display:grid;grid-template-columns:1fr auto auto;gap:8px}
+.command-input,.field{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:10px 12px;color:var(--text);font-family:var(--font-mono);font-size:.84rem;min-width:0}
+.command-input:focus,.field:focus,.memory-textarea:focus{outline:1px solid var(--border);outline-offset:2px}
+.btn{padding:10px 14px;border-radius:11px;border:1px solid var(--border);background:transparent;color:var(--text);font-weight:800;cursor:pointer;font-size:.84rem;transition:transform .15s ease,background .15s ease}
+.btn:hover{transform:translateY(-1px)}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.btn-primary{background:#fff;color:#000}
+.btn-ghost{background:transparent}
+.btn-danger{background:transparent;border-color:var(--danger);color:var(--danger)}
+.btn-small{padding:8px 10px;font-size:.78rem}
+.terminal-head{display:flex;align-items:center;justify-content:space-between;margin:14px 0 8px;color:var(--muted);font-size:.78rem}
+.terminal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;font-family:var(--font-mono);font-size:.82rem;color:#e5e5e5;min-height:180px;max-height:330px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+.chart-actions{display:flex;gap:6px;flex-wrap:wrap}
+.chart-actions .btn.active{background:rgba(255,255,255,.08);color:var(--text)}
+.chart-block{margin-top:14px}
+.chart-block:first-of-type{margin-top:0}
+.chart-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px;color:var(--muted);font-size:.78rem}
+.chart-head strong{color:var(--text);font-family:var(--font-mono);font-size:.78rem}
+.line-chart{width:100%;height:180px;display:block}
+.availability-bars{display:flex;gap:3px;height:46px;align-items:stretch}
+.availability-bars .uptime-tick{min-width:2px}
+.raw{margin-top:14px;border-top:1px solid var(--border);padding-top:12px}
+.raw summary{cursor:pointer;color:var(--muted);font-size:.78rem}
+.raw pre{white-space:pre-wrap;word-break:break-word;font-family:var(--font-mono);font-size:.74rem;color:#e5e5e5;margin-top:10px;max-height:180px;overflow:auto}
+.memory-grid{display:grid;grid-template-columns:1.4fr .6fr;gap:16px}
+.memory-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.memory-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.memory-tools .field{width:190px}
+.memory-textarea{width:100%;min-height:220px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;color:#e5e5e5;font-family:var(--font-mono);font-size:.84rem;line-height:1.6;resize:vertical}
+.memory-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.memory-statusline{display:flex;justify-content:space-between;gap:10px;margin-top:8px;color:var(--muted);font-size:.74rem}
+.memory-matches{margin-top:12px;display:grid;gap:6px;max-height:150px;overflow:auto}
+.memory-match{padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface);font-family:var(--font-mono);font-size:.76rem;color:#e5e5e5;word-break:break-word}
+.memory-side{display:grid;gap:10px;align-content:start}
+.stat-block{border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--surface)}
+.stat-block .label{color:var(--muted);font-size:.74rem}
+.stat-block .value{font-size:1.05rem;margin-top:5px}
+.memory-meta{color:#e5e5e5;font-family:var(--font-mono);font-size:.76rem;word-break:break-word;margin-top:5px}
+.audit-toolbar{display:grid;grid-template-columns:150px 150px 1fr auto;gap:8px;margin-bottom:12px;align-items:center}
+.audit-toolbar .field{font-family:var(--font-sans)}
+.audit-toolbar select.field{appearance:none}
+.audit-actions{display:flex;gap:6px}
+.audit-list{display:grid;gap:7px;min-height:120px}
+.audit-row{display:grid;grid-template-columns:140px 160px 1fr;gap:12px;align-items:start;padding:10px 12px;border:1px solid var(--border);border-radius:11px;background:var(--surface);font-size:.8rem}
+.audit-row.error{border-color:rgba(239,68,68,.55)}
+.audit-time{color:var(--muted);font-family:var(--font-mono);font-size:.72rem}
+.audit-event{font-family:var(--font-mono);font-size:.76rem}
+.audit-detail{color:var(--muted);font-size:.76rem;word-break:break-word}
+.audit-pagination{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}
+.audit-pagination .hint{font-family:var(--font-mono)}
+.empty{color:var(--muted);font-size:.84rem;padding:12px 0}
+.skeleton{display:block;height:12px;border-radius:6px;background:var(--soft);animation:pulse 1.4s ease-in-out infinite}
+.skeleton-row{display:grid;grid-template-columns:1fr 80px;gap:14px;padding:12px;border:1px solid var(--border);border-radius:12px}
+.skeleton-stack{display:grid;gap:6px}
+footer{margin-top:20px;padding-top:16px;border-top:1px solid var(--border);color:var(--muted);font-size:.78rem;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:29;display:none}
+.overlay.show{display:block}
+.toast{position:fixed;right:20px;bottom:20px;z-index:80;max-width:min(420px,90vw);padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:.84rem;transform:translateY(12px);opacity:0;pointer-events:none;transition:opacity .2s ease,transform .2s ease}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.error{border-color:var(--danger)}
+.palette{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);display:flex;justify-content:center;padding:12vh 16px 16px}
+.palette-box{width:min(680px,100%);height:fit-content;max-height:70vh;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--border);border-radius:18px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.55)}
+.palette-input-wrap{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border)}
+.palette-input-wrap svg{width:18px;height:18px;color:var(--muted)}
+.palette-input-wrap input{flex:1;border:0;outline:0;background:transparent;color:var(--text);font-size:1rem}
+.palette-list{overflow:auto;padding:8px}
+.palette-item{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;padding:11px 12px;border:1px solid transparent;border-radius:11px;background:transparent;color:var(--text);cursor:pointer;text-align:left}
+.palette-item:hover,.palette-item.active{background:rgba(255,255,255,.06);border-color:var(--border)}
+.palette-label{font-family:var(--font-mono);font-size:.86rem}
+.palette-hint{color:var(--muted);font-size:.74rem;white-space:nowrap}
+.palette-foot{display:flex;gap:14px;padding:10px 16px;border-top:1px solid var(--border);color:var(--muted);font-size:.72rem;flex-wrap:wrap}
+kbd{border:1px solid var(--border);border-radius:5px;padding:2px 5px;font-family:var(--font-mono);font-size:.68rem;color:var(--muted)}
+.dialog{border:1px solid var(--border);border-radius:18px;background:var(--panel);color:var(--text);padding:0;width:min(520px,92vw);margin:auto}
+.dialog::backdrop{background:rgba(0,0,0,.72);backdrop-filter:blur(4px)}
+.dialog-body{padding:20px}
+.dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.dialog-head h2{font-size:1.15rem}
+.dialog p{color:var(--muted);font-size:.86rem;line-height:1.6}
+.setting-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 0;border-bottom:1px solid var(--border)}
+.setting-row:last-of-type{border-bottom:0}
+.setting-row strong{display:block;font-size:.86rem}
+.setting-row span{display:block;color:var(--muted);font-size:.74rem;margin-top:2px}
+.switch{appearance:none;width:42px;height:24px;border-radius:999px;border:1px solid var(--border);background:var(--soft);position:relative;cursor:pointer;flex:0 0 auto}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:999px;background:var(--muted);transition:transform .15s ease,background .15s ease}
+.switch:checked{background:rgba(34,197,94,.25);border-color:var(--accent)}
+.switch:checked::after{transform:translateX(18px);background:var(--accent)}
+.dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;flex-wrap:wrap}
+body.compact main{padding:18px 20px 32px}
+body.compact .kpi{padding:13px;min-height:120px}
+body.compact .panel{padding:14px}
+body.compact .page-section{margin-bottom:24px}
+body.compact .ops-grid,body.compact .overview-grid{gap:12px}
+@media(max-width:1180px){.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.overview-grid,.ops-grid{grid-template-columns:1fr}.memory-grid{grid-template-columns:1fr}.audit-toolbar{grid-template-columns:1fr 1fr}.audit-toolbar .field:nth-child(3){grid-column:1/-1}.audit-actions{grid-column:1/-1}}
+@media(max-width:900px){.app-shell{grid-template-columns:1fr}.sidebar{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .2s ease;width:250px}.sidebar.open{transform:translateX(0)}#menuToggle{display:grid}.topbar{padding:12px 16px}.search-trigger{min-width:0;width:42px;padding:9px;justify-content:center}.search-trigger span,.search-trigger kbd{display:none}main{padding:20px 16px 34px}.audit-row{grid-template-columns:1fr}.command-menu{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.kpi-grid{grid-template-columns:1fr}.command-wrap{grid-template-columns:1fr}.command-menu{grid-template-columns:1fr}.topbar-actions .icon-btn:nth-of-type(3){display:none}.page-head{flex-direction:column;align-items:flex-start}.head-actions{align-items:flex-start}.memory-tools .field{width:100%}.audit-toolbar{grid-template-columns:1fr}.audit-actions{grid-column:auto}.dialog-actions{justify-content:stretch}.dialog-actions .btn{flex:1}}
 </style>
 </head>
 <body>
-<div class="container">
-<nav>
-  <div class="brand">HeliosPilot Dashboard</div>
-  <a href="/" style="color:var(--muted)">Home</a>
-</nav>
-<section class="hero">
-  <div>
-    <h1>Bot Usage Dashboard</h1>
-    <p>المشروع: HELIOS-NET | Uptime (session): <strong id="uptime">0s</strong></p>
-  </div>
-  <div class="status-pill" id="statusPill">Checking...</div>
-</section>
-<div class="section-title">
-  <div><div class="eyebrow">Live status</div><h2>System overview</h2></div>
-  <div class="hint">Auto-refresh every 30s</div>
-</div>
-<div class="grid">
-  <div class="card"><div class="label">Telegram</div><div class="value" id="telegram">--</div></div>
-  <div class="card"><div class="label">GitHub</div><div class="value" id="github">--</div></div>
-  <div class="card"><div class="label">AI</div><div class="value" id="ai">--</div></div>
-  <div class="card"><div class="label">Sentry</div><div class="value" id="sentry">--</div></div>
-  <div class="card"><div class="label">KV</div><div class="value" id="kv">--</div></div>
-  <div class="card"><div class="label">Last Check</div><div class="value" id="last">--</div></div>
-  <div class="card"><div class="label">Bot Test</div><div class="value" id="botTest">--</div></div>
-  <div class="card"><div class="label">Telegram Test</div><div class="value" id="telegramTest">--</div></div>
-  <div class="card"><div class="label">API Latency</div><div class="value" id="latency">--</div></div>
-  <div class="card"><div class="label">API Response</div><div class="value" id="apiRaw" style="font-size:.85rem;word-break:break-word">--</div></div>
-</div>
-
-<div class="section-title">
-  <div><div class="eyebrow">Operations</div><h2>Tools</h2></div>
-  <div class="hint">Pick a number 1-9</div>
-</div>
-<section class="section">
-  <div class="panel">
-    <div class="panel-head"><h2>Command Runner</h2><span class="hint">Terminal</span></div>
-    <div id="commandMenu" class="menu"></div>
-    <div class="command-wrap">
-      <input id="dashCommand" class="command-input" type="text" placeholder="/status" />
-      <button id="runCommand" class="command-btn">Run</button>
-      <button id="clearCommand" class="command-btn secondary">Clear</button>
+<div class="app-shell">
+<aside class="sidebar" id="sidebar">
+  <div class="brand"><span class="brand-mark">H</span><span>HeliosPilot<span class="brand-sub">Control Center</span></span></div>
+  <nav class="side-nav" aria-label="Dashboard sections">
+    <a class="nav-link active" data-section="overview" href="#overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Overview</span></a>
+    <a class="nav-link" data-section="operations" href="#operations"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 17l6-6-6-6"/><path d="M12 19h8"/></svg><span>Operations</span></a>
+    <a class="nav-link" data-section="memory" href="#memory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></svg><span>Memory</span></a>
+    <a class="nav-link" data-section="audit" href="#audit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg><span>Audit</span></a>
+  </nav>
+  <div class="sidebar-foot">
+    <div class="session-card">
+      <div class="session-row"><span class="dot" id="sideDot"></span><span id="sideStatus">Checking...</span></div>
+      <div class="session-meta" id="sideMeta">Token session</div>
     </div>
-    <div class="terminal" id="dashTerminal">Ready.</div>
+    <button class="nav-link" id="settingsOpen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Settings</span></button>
   </div>
-  <div class="panel">
-    <div class="panel-head"><h2>Charts</h2><span class="hint">Session</span></div>
-    <div class="chart">
-      <div class="bar-row"><span>Uptime</span><div class="bar"><span id="barUptime" style="width:0%"></span></div><span id="uptimeValue">0s</span></div>
-      <div class="bar-row"><span>Latency</span><div class="bar"><span id="barLatency" style="width:0%"></span></div><span id="latencyValue">0ms</span></div>
-      <div class="bar-row"><span>Errors</span><div class="bar"><span id="barErrors" style="width:0%"></span></div><span id="errorsValue">0</span></div>
+</aside>
+
+<div class="main-wrap">
+<header class="topbar">
+  <button class="icon-btn" id="menuToggle" aria-label="Open navigation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+  <div class="topbar-title"><div class="eyebrow">HELIOS-NET</div><h1 id="pageTitle">Overview</h1></div>
+  <div class="topbar-actions">
+    <button class="search-trigger" id="paletteOpen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><span>Search commands</span><kbd>Ctrl K</kbd></button>
+    <button class="icon-btn" id="refreshBtn" title="Refresh dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
+    <span class="hint" id="refreshCountdown">30s</span>
+    <button class="icon-btn" id="compactToggle" title="Toggle compact mode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 12h8"/></svg></button>
+    <a class="icon-btn" href="/" title="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg></a>
+  </div>
+</header>
+
+<main>
+<section class="page-section" id="overview">
+  <div class="page-head">
+    <div><div class="eyebrow">Control center</div><h2>System overview</h2><p>Live service health, runtime checks, availability, and recent activity in one view.</p></div>
+    <div class="head-actions"><span class="status-pill"><span class="dot" id="statusDot"></span><span id="statusText">Checking...</span></span><span class="hint" id="lastUpdated">not checked yet</span></div>
+  </div>
+
+  <div class="kpi-grid">
+    <article class="kpi loading"><div class="kpi-top"><span>Overall</span><span class="dot" id="overallDot"></span></div><div class="kpi-value" id="overallValue">--</div><div class="kpi-meta" id="overallMeta">Loading...</div><div class="spark" id="sparkOverall"></div></article>
+    <article class="kpi loading"><div class="kpi-top"><span>Services online</span><span class="hint">required</span></div><div class="kpi-value" id="servicesValue">--</div><div class="kpi-meta" id="servicesMeta">Loading...</div><div class="spark" id="sparkServices"></div></article>
+    <article class="kpi loading"><div class="kpi-top"><span>Uptime</span><span class="hint">24h</span></div><div class="kpi-value" id="uptimeValue">--</div><div class="kpi-meta" id="uptimeMeta">Loading...</div><div class="spark" id="sparkUptime"></div></article>
+    <article class="kpi loading"><div class="kpi-top"><span>Latency</span><span class="hint">24h avg</span></div><div class="kpi-value" id="latencyValue">--</div><div class="kpi-meta" id="latencyMeta">Loading...</div><div class="spark" id="sparkLatency"></div></article>
+  </div>
+
+  <div class="overview-grid">
+    <div class="panel">
+      <div class="panel-head"><div><div class="eyebrow">Dependencies</div><h3>Services</h3></div><button class="link-btn" id="servicesRefresh">Refresh</button></div>
+      <div class="service-list" id="serviceList"></div>
     </div>
-    <button id="exportLogs" class="export-btn">Export Logs (JSON)</button>
+    <div class="panel">
+      <div class="panel-head"><div><div class="eyebrow">Audit</div><h3>Recent activity</h3></div><a class="link-btn" href="#audit">View all</a></div>
+      <div class="activity-list" id="recentActivity"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><div><div class="eyebrow">Last 24 hours</div><h3>Availability</h3></div><span class="hint" id="availabilityHint">Waiting for samples...</span></div>
+    <div class="uptime-strip" id="uptimeStrip"></div>
+    <div class="legend"><span><i class="legend-dot"></i>Online</span><span><i class="legend-dot offline"></i>Degraded</span><span><i class="legend-dot empty"></i>No sample</span></div>
   </div>
 </section>
 
-<div class="section-title">
-  <div><div class="eyebrow">Persistent state</div><h2>Memory</h2></div>
-  <div class="hint" id="memoryStatus">Loading...</div>
-</div>
-<section class="panel">
-  <div class="memory-grid">
-    <div>
-      <label class="label" for="memoryText">Dynamic memory (one entry per line)</label>
-      <textarea id="memoryText" class="memory-textarea" placeholder="Add a memory entry..."></textarea>
-      <div class="memory-actions">
-        <button id="saveMemory" class="command-btn">Save Memory</button>
-        <button id="clearMemory" class="command-btn secondary">Clear Memory</button>
+<section class="page-section" id="operations">
+  <div class="page-head">
+    <div><div class="eyebrow">Operations</div><h2>Command center</h2><p>Run commands, inspect raw responses, and compare latency across a selected window.</p></div>
+    <div class="head-actions"><button class="btn btn-ghost btn-small" id="paletteOpenAlt">Open command palette</button></div>
+  </div>
+
+  <div class="ops-grid">
+    <div class="panel">
+      <div class="panel-head"><div><div class="eyebrow">Terminal</div><h3>Command runner</h3></div><span class="hint" id="commandHint">Ready</span></div>
+      <div class="command-menu" id="commandMenu"></div>
+      <div class="command-wrap">
+        <input class="command-input" id="dashCommand" type="text" placeholder="Type /status or 2" autocomplete="off" />
+        <button class="btn btn-primary" id="runCommand">Run</button>
+        <button class="btn btn-ghost" id="clearCommand">Clear</button>
+      </div>
+      <div class="terminal-head"><span>Output</span><button class="link-btn" id="copyTerminal">Copy</button></div>
+      <div class="terminal" id="dashTerminal">Ready.</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><div><div class="eyebrow">Telemetry</div><h3>Charts</h3></div><div class="chart-actions"><button class="btn btn-small btn-ghost active" data-range="1">1h</button><button class="btn btn-small btn-ghost" data-range="6">6h</button><button class="btn btn-small btn-ghost" data-range="24">24h</button></div></div>
+      <div class="chart-block">
+        <div class="chart-head"><span>Latency</span><strong id="latencyAvg">--</strong></div>
+        <svg class="line-chart" id="latencyChart" viewBox="0 0 600 180" role="img" aria-label="Latency chart"></svg>
+      </div>
+      <div class="chart-block">
+        <div class="chart-head"><span>Availability</span><strong id="availabilityValue">--</strong></div>
+        <div class="availability-bars" id="availabilityBars"></div>
+      </div>
+      <div class="chart-actions" style="margin-top:12px"><button class="btn btn-small btn-ghost" id="exportLogs">Export JSON</button></div>
+      <details class="raw"><summary>Raw health response</summary><pre id="apiRaw">--</pre></details>
+    </div>
+  </div>
+</section>
+
+<section class="page-section" id="memory">
+  <div class="page-head">
+    <div><div class="eyebrow">Persistent state</div><h2>Memory</h2><p>Edit, search, quick-add, save, and undo persistent runtime memory. One entry per line.</p></div>
+    <div class="head-actions"><span class="hint" id="memoryStatus">Loading...</span></div>
+  </div>
+
+  <div class="panel">
+    <div class="memory-grid">
+      <div>
+        <div class="memory-toolbar">
+          <div class="memory-tools"><input class="field" id="memorySearch" type="search" placeholder="Search entries" /><input class="field" id="memoryQuickAdd" type="text" placeholder="Quick add entry" /></div>
+          <div class="memory-tools"><button class="btn btn-small btn-ghost" id="memoryQuickAddBtn">Add</button></div>
+        </div>
+        <textarea class="memory-textarea" id="memoryText" placeholder="Add a memory entry..."></textarea>
+        <div class="memory-actions">
+          <button class="btn btn-primary" id="saveMemory">Save Memory</button>
+          <button class="btn btn-ghost" id="undoMemory" disabled>Undo</button>
+          <button class="btn btn-danger" id="clearMemory">Clear Memory</button>
+        </div>
+        <div class="memory-statusline"><span id="memoryDirty">Saved</span><span id="memoryChars">0 / 50000 chars</span></div>
+        <div class="memory-matches" id="memoryMatches" hidden></div>
+      </div>
+      <div class="memory-side">
+        <div class="stat-block"><div class="label">Entries</div><div class="value" id="memoryCount">0 / 25</div></div>
+        <div class="stat-block"><div class="label">Last context</div><div class="memory-meta" id="memoryContext">--</div></div>
+        <div class="stat-block"><div class="label">Last saved</div><div class="memory-meta" id="memorySaved">--</div></div>
       </div>
     </div>
-    <div>
-      <div class="label">Last context</div>
-      <div id="memoryContext" class="memory-meta">--</div>
-      <div class="label">Entries</div>
-      <div id="memoryCount" class="memory-meta">0 / 25</div>
-    </div>
   </div>
 </section>
-<footer><span>HELIOS-NET</span><span>HeliosPilot Dashboard</span></footer>
+
+<section class="page-section" id="audit">
+  <div class="page-head">
+    <div><div class="eyebrow">Security</div><h2>Audit trail</h2><p>Filter recent security events, inspect details, and export the trail.</p></div>
+    <div class="head-actions"><span class="hint" id="auditStatus">Loading...</span></div>
+  </div>
+
+  <div class="panel">
+    <div class="audit-toolbar">
+      <select class="field" id="auditType"><option value="all">All events</option><option value="memory">Memory</option><option value="command">Commands</option><option value="error">Errors</option></select>
+      <select class="field" id="auditDate"><option value="all">All time</option><option value="24h">Last 24h</option><option value="7d">Last 7 days</option></select>
+      <input class="field" id="auditSearch" type="search" placeholder="Search event, command, IP" />
+      <div class="audit-actions"><button class="btn btn-small btn-ghost" id="exportAuditJson">JSON</button><button class="btn btn-small btn-ghost" id="exportAuditCsv">CSV</button></div>
+    </div>
+    <div class="audit-list" id="auditList"></div>
+    <div class="audit-pagination"><button class="btn btn-small btn-ghost" id="auditPrev" disabled>Previous</button><span class="hint" id="auditPage">Page 1</span><button class="btn btn-small btn-ghost" id="auditNext" disabled>Next</button></div>
+  </div>
+</section>
+
+<footer><span>HELIOS-NET</span><span>HeliosPilot Control Center</span></footer>
+</main>
+</div>
 </div>
 
+<div class="overlay" id="sidebarOverlay"></div>
+
+<div class="palette" id="palette" hidden>
+  <div class="palette-box" role="dialog" aria-modal="true" aria-label="Command palette">
+    <div class="palette-input-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="paletteInput" type="text" placeholder="Search commands and actions..." autocomplete="off" /><kbd>ESC</kbd></div>
+    <div class="palette-list" id="paletteList"></div>
+    <div class="palette-foot"><span><kbd>↑↓</kbd> navigate</span><span><kbd>↵</kbd> run</span><span><kbd>esc</kbd> close</span></div>
+  </div>
+</div>
+
+<dialog class="dialog" id="settingsDialog">
+  <div class="dialog-body">
+    <div class="dialog-head"><h2>Settings</h2><button class="icon-btn" data-close-dialog="settingsDialog" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="setting-row"><div><strong>Auto-refresh</strong><span>Refresh health every 30 seconds.</span></div><input class="switch" type="checkbox" id="settingAuto"></div>
+    <div class="setting-row"><div><strong>Compact mode</strong><span>Reduce spacing and card padding.</span></div><input class="switch" type="checkbox" id="settingCompact"></div>
+    <div class="setting-row"><div><strong>Session</strong><span id="settingSession">Token loaded from this browser session.</span></div><span class="dot" id="settingDot"></span></div>
+    <div class="dialog-actions"><button class="btn btn-ghost" id="clearLogs">Clear local logs</button><button class="btn btn-danger" id="signOut">Sign out</button></div>
+  </div>
+</dialog>
+
+<dialog class="dialog" id="confirmDialog">
+  <div class="dialog-body">
+    <div class="dialog-head"><h2 id="confirmTitle">Confirm</h2><button class="icon-btn" data-close-dialog="confirmDialog" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <p id="confirmMessage"></p>
+    <div class="dialog-actions"><button class="btn btn-ghost" id="confirmCancel">Cancel</button><button class="btn btn-danger" id="confirmOk">Confirm</button></div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
 <script>
-const start = Date.now();
-const logs = [];
-let errorCount = 0;
-const dashHistory = [];
-let dashHistoryIndex = -1;
-const dashCommands = ['/start','/status','/clear','/metrics','/review','/autofix','/createwiki','/analyze-perf','repos'];
-function renderCommandMenu() {
-  const menu = document.getElementById('commandMenu');
-  menu.textContent = 'Select a command by number:\n' + dashCommands.map((cmd, i) => (i + 1) + ') ' + cmd).join('\n');
+const $ = (id) => document.getElementById(id);
+const params = new URLSearchParams(window.location.search);
+const queryToken = params.get('token');
+const dashboardToken = queryToken || sessionStorage.getItem('dashboardToken') || '';
+if (queryToken) {
+  sessionStorage.setItem('dashboardToken', queryToken);
+  try { history.replaceState({}, document.title, window.location.pathname); } catch {}
 }
-renderCommandMenu();
-setInterval(() => {
-  const s = Math.floor((Date.now() - start) / 1000);
-  document.getElementById('uptime').textContent = s + 's';
-  document.getElementById('uptimeValue').textContent = s + 's';
-  const uptimePercent = Math.min(100, Math.round((s / 3600) * 100));
-  document.getElementById('barUptime').style.width = uptimePercent + '%';
-}, 1000);
 
-async function load() {
-  try {
-    const r = await fetch('/api?health=true');
-    const d = await r.json();
-    const s = d.services || {};
-    const set = (id, ok) => {
-      const el = document.getElementById(id);
-      el.textContent = ok ? 'Online' : 'Offline';
-      el.style.color = ok ? '#22c55e' : '#ef4444';
-    };
-    set('telegram', s.telegram);
-    set('github', s.github);
-    set('ai', s.ai);
-    set('sentry', s.sentry);
-    set('kv', s.kv);
-    document.getElementById('last').textContent = new Date().toLocaleTimeString();
-    document.getElementById('statusPill').textContent = 'System Status: ' + (Object.values(s).every(Boolean) ? 'Healthy' : 'Partial');
+const SERVICE_DEFS = [
+  { key: 'telegram', name: 'Telegram', detail: 'Bot API' },
+  { key: 'github', name: 'GitHub', detail: 'App credentials' },
+  { key: 'ai', name: 'AI', detail: 'Groq / OpenRouter' },
+  { key: 'sentry', name: 'Sentry', detail: 'Error tracking (optional)' },
+  { key: 'kv', name: 'KV', detail: 'Persistent store' }
+];
+const REQUIRED_SERVICES = ['telegram', 'github', 'ai', 'kv'];
+const dashCommands = ['/status', '/metrics', '/review', '/autofix', '/createwiki', '/analyze-perf', 'repos', '/clear', '/start'];
+const state = {
+  auto: true,
+  compact: false,
+  refreshing: false,
+  nextRefresh: Date.now() + 30000,
+  logs: [],
+  errors: 0,
+  health: null,
+  metrics: { history: [], latency: [], summary: { samples: 0, uptime: null } },
+  metricsRange: 1,
+  audit: { events: [], page: 1, pageSize: 8, type: 'all', date: 'all', search: '' },
+  memory: { entries: [], undo: null, lastSaved: null, context: null, loading: true },
+  palette: { items: [], index: 0 },
+  commandHistory: [],
+  commandHistoryIndex: -1,
+  confirmResolve: null
+};
 
-    const t0 = performance.now();
-    const tr = await fetch('/api?test=true');
-    const td = await tr.json();
-    const ms = Math.round(performance.now() - t0);
-    document.getElementById('latency').textContent = ms + ' ms';
-    document.getElementById('latencyValue').textContent = ms + ' ms';
-    document.getElementById('barLatency').style.width = Math.min(100, Math.round(ms / 10)) + '%';
-    document.getElementById('botTest').textContent = td.success ? 'OK' : 'Error';
-    document.getElementById('botTest').style.color = td.success ? '#22c55e' : '#ef4444';
-    document.getElementById('telegramTest').textContent = td.telegram ? 'OK' : 'Error';
-    document.getElementById('telegramTest').style.color = td.telegram ? '#22c55e' : '#ef4444';
-    document.getElementById('apiRaw').textContent = JSON.stringify(td);
-    document.getElementById('dashTerminal').textContent = 'Health: ' + JSON.stringify(d.services) + '\\nBot: ' + JSON.stringify(td);
-    logs.push({ time: new Date().toISOString(), health: d.services, bot: td, latency: ms });
-    if (!td.success) errorCount += 1;
-    document.getElementById('errorsValue').textContent = errorCount;
-    document.getElementById('barErrors').style.width = Math.min(100, errorCount * 10) + '%';
-  } catch (e) {
-    document.getElementById('last').textContent = 'Error';
-    document.getElementById('botTest').textContent = 'Error';
-    document.getElementById('telegramTest').textContent = 'Error';
-    document.getElementById('apiRaw').textContent = e.message;
-    document.getElementById('dashTerminal').textContent = 'Error: ' + e.message;
-    errorCount += 1;
-    document.getElementById('errorsValue').textContent = errorCount;
-    document.getElementById('barErrors').style.width = Math.min(100, errorCount * 10) + '%';
-  }
-}
-load();
-setInterval(load, 30000);
-
-const dashboardToken = new URLSearchParams(window.location.search).get('token') || sessionStorage.getItem('dashboardToken') || '';
-function memoryHeaders() {
+function apiHeaders() {
   return { 'Content-Type': 'application/json', 'x-dashboard-token': dashboardToken };
 }
-function renderMemory(memory) {
-  const entries = Array.isArray(memory.dynamicMemory) ? memory.dynamicMemory : [];
-  document.getElementById('memoryText').value = entries.join('\n');
-  document.getElementById('memoryCount').textContent = entries.length + ' / 25';
-  document.getElementById('memoryContext').textContent = memory.lastContextUrl || '--';
+
+function toast(message, type = 'success') {
+  const el = $('toast');
+  el.textContent = message;
+  el.className = 'toast show' + (type === 'error' ? ' error' : '');
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => { el.className = 'toast'; }, 3200);
 }
-async function loadMemory() {
-  const status = document.getElementById('memoryStatus');
-  try {
-    const response = await fetch('/api/memory', { headers: { 'x-dashboard-token': dashboardToken } });
-    if (!response.ok) throw new Error('Unauthorized');
-    const data = await response.json();
-    renderMemory(data.memory || {});
-    status.textContent = 'Loaded';
-  } catch (error) {
-    status.textContent = 'Error: ' + error.message;
+
+function setText(id, text) {
+  const el = $(id);
+  if (el) el.textContent = text;
+}
+
+function formatTime(value, short = false) {
+  if (!value) return '--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return short ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : date.toLocaleString();
+}
+
+function formatRelative(value) {
+  if (!value) return '--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--';
+  const seconds = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+function setSideStatus(text, tone = 'ok') {
+  setText('sideStatus', text);
+  $('sideDot').classList.toggle('offline', tone !== 'ok');
+  $('settingSession').textContent = text;
+  $('settingDot').classList.toggle('offline', tone !== 'ok');
+}
+
+function setPill(services) {
+  const online = REQUIRED_SERVICES.filter((key) => Boolean(services?.[key])).length;
+  const total = REQUIRED_SERVICES.length;
+  const dot = $('statusDot');
+  if (online === total) {
+    setText('statusText', 'All systems healthy');
+    dot.classList.remove('offline');
+  } else if (online > 0) {
+    setText('statusText', `${online}/${total} services online`);
+    dot.classList.add('offline');
+  } else {
+    setText('statusText', 'System offline');
+    dot.classList.add('offline');
   }
 }
-async function saveMemory(payload) {
-  const status = document.getElementById('memoryStatus');
+
+function makeSkeletonRows(count = 5) {
+  const wrap = document.createElement('div');
+  wrap.className = 'service-list';
+  for (let i = 0; i < count; i += 1) {
+    const row = document.createElement('div');
+    row.className = 'skeleton-row';
+    const stack = document.createElement('div');
+    stack.className = 'skeleton-stack';
+    const a = document.createElement('span');
+    a.className = 'skeleton';
+    a.style.width = '45%';
+    const b = document.createElement('span');
+    b.className = 'skeleton';
+    b.style.width = '65%';
+    b.style.height = '9px';
+    stack.append(a, b);
+    const c = document.createElement('span');
+    c.className = 'skeleton';
+    c.style.width = '60px';
+    row.append(stack, c);
+    wrap.appendChild(row);
+  }
+  return wrap;
+}
+
+function renderServiceSkeleton() {
+  $('serviceList').replaceChildren(...makeSkeletonRows(5).childNodes);
+}
+
+function renderServices(services = null) {
+  const list = $('serviceList');
+  list.replaceChildren();
+  if (!services) {
+    renderServiceSkeleton();
+    return;
+  }
+
+  SERVICE_DEFS.forEach((def) => {
+    const online = Boolean(services[def.key]);
+    const row = document.createElement('div');
+    row.className = 'service-row';
+    const main = document.createElement('div');
+    main.className = 'service-main';
+    const dot = document.createElement('span');
+    dot.className = 'dot' + (online ? '' : ' offline');
+    const text = document.createElement('div');
+    const name = document.createElement('div');
+    name.className = 'service-name';
+    name.textContent = def.name;
+    const detail = document.createElement('div');
+    detail.className = 'service-detail';
+    detail.textContent = def.detail;
+    text.append(name, detail);
+    main.append(dot, text);
+    const status = document.createElement('div');
+    status.className = 'service-state';
+    const stateDot = document.createElement('span');
+    stateDot.className = 'dot' + (online ? '' : ' offline');
+    const stateText = document.createElement('span');
+    stateText.textContent = online ? 'Online' : 'Offline';
+    status.append(stateDot, stateText);
+    if (def.key === 'sentry' && !online) stateText.textContent = 'Optional';
+    row.append(main, status);
+    list.appendChild(row);
+  });
+}
+
+function renderRecentActivity(events = null) {
+  const list = $('recentActivity');
+  list.replaceChildren();
+  const source = events || state.audit.events || [];
+  if (!source.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = 'No activity recorded yet.';
+    list.appendChild(empty);
+    return;
+  }
+
+  source.slice(0, 6).forEach((event) => {
+    const row = document.createElement('div');
+    row.className = 'activity-row';
+    const time = document.createElement('div');
+    time.className = 'activity-time';
+    time.textContent = formatRelative(event.time);
+    const body = document.createElement('div');
+    const name = document.createElement('div');
+    name.className = 'activity-event';
+    name.textContent = event.event || 'event';
+    const detail = document.createElement('div');
+    detail.className = 'activity-detail';
+    const parts = [];
+    if (event.command) parts.push(event.command);
+    if (event.source) parts.push(event.source);
+    if (event.entries !== undefined) parts.push(`${event.entries} entries`);
+    detail.textContent = parts.join(' · ') || '--';
+    body.append(name, detail);
+    row.append(time, body);
+    list.appendChild(row);
+  });
+}
+
+function sparkline(target, values) {
+  const el = $(target);
+  if (!el) return;
+  el.replaceChildren();
+  if (!values || !values.length) {
+    const empty = document.createElement('span');
+    empty.className = 'spark-empty';
+    empty.textContent = 'No data';
+    el.appendChild(empty);
+    return;
+  }
+
+  const width = 120;
+  const height = 36;
+  const padding = 2;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const count = values.length;
+  const points = values.map((value, index) => {
+    const x = count === 1 ? width / 2 : padding + (index / (count - 1)) * (width - padding * 2);
+    const y = height - padding - ((value - min) / range) * (height - padding * 2);
+    return `${x},${y}`;
+  }).join(' ');
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  polyline.setAttribute('points', points);
+  polyline.setAttribute('fill', 'none');
+  polyline.setAttribute('stroke', 'var(--accent)');
+  polyline.setAttribute('stroke-width', '2');
+  polyline.setAttribute('stroke-linecap', 'round');
+  polyline.setAttribute('stroke-linejoin', 'round');
+  svg.appendChild(polyline);
+  el.appendChild(svg);
+}
+
+function filterHistory(hours) {
+  const cutoff = Date.now() - hours * 3600 * 1000;
+  return (state.metrics.history || []).filter((entry) => new Date(entry.time).getTime() >= cutoff);
+}
+
+function serviceCount(entry) {
+  const services = entry?.services || {};
+  return REQUIRED_SERVICES.filter((key) => Boolean(services[key])).length;
+}
+
+function latencySeries(hours) {
+  const cutoff = Date.now() - hours * 3600 * 1000;
+  const remote = (state.metrics.latency || [])
+    .filter((entry) => new Date(entry.time).getTime() >= cutoff)
+    .map((entry) => entry.latency);
+  if (remote.length) return remote;
+  return state.logs
+    .filter((entry) => new Date(entry.time).getTime() >= cutoff && entry.latency)
+    .map((entry) => entry.latency);
+}
+
+function computeUptime(entries) {
+  if (!entries.length) return null;
+  return Math.round((entries.filter((entry) => entry.status === 'healthy').length / entries.length) * 100);
+}
+
+function renderKpis() {
+  const services = state.health?.services || {};
+  const online = REQUIRED_SERVICES.filter((key) => Boolean(services[key])).length;
+  const total = REQUIRED_SERVICES.length;
+  const overall = online === total ? 'Healthy' : online > 0 ? 'Degraded' : 'Offline';
+  const history24 = filterHistory(24);
+  const uptime = computeUptime(history24);
+  const latencies = latencySeries(24);
+  const latency = latencies.length ? Math.round(latencies.reduce((sum, value) => sum + value, 0) / latencies.length) : null;
+
+  setText('overallValue', overall);
+  setText('overallMeta', `${online}/${total} required services online`);
+  $('overallDot').classList.toggle('offline', online !== total);
+
+  setText('servicesValue', `${online}/${total}`);
+  setText('servicesMeta', services.sentry ? 'All services connected' : 'Sentry optional');
+  setText('uptimeValue', uptime === null ? '--' : `${uptime}%`);
+  setText('uptimeMeta', history24.length ? `${history24.length} samples in 24h` : 'No samples yet');
+  setText('latencyValue', latency === null ? '--' : `${latency} ms`);
+  setText('latencyMeta', latencies.length ? `${latencies.length} samples in 24h` : 'No samples yet');
+
+  sparkline('sparkOverall', history24.map(serviceCount));
+  sparkline('sparkServices', history24.map(serviceCount));
+  sparkline('sparkUptime', history24.map((entry) => entry.status === 'healthy' ? 1 : 0));
+  sparkline('sparkLatency', latencySeries(24));
+
+  document.querySelectorAll('.kpi').forEach((card) => card.classList.remove('loading'));
+}
+
+function renderLatencyChart() {
+  const svg = $('latencyChart');
+  svg.replaceChildren();
+  const values = latencySeries(state.metricsRange);
+  const average = values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : null;
+  setText('latencyAvg', average === null ? '--' : `${average} ms`);
+
+  const width = 600;
+  const height = 180;
+  const pad = 14;
+
+  const make = (name, attrs) => {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', name);
+    Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, String(value)));
+    return node;
+  };
+
+  [0, 0.5, 1].forEach((ratio) => {
+    const y = pad + ratio * (height - pad * 2);
+    svg.appendChild(make('line', { x1: pad, y1: y, x2: width - pad, y2: y, stroke: 'rgba(255,255,255,.08)', 'stroke-width': 1 }));
+  });
+
+  if (!values.length) {
+    const label = make('text', { x: width / 2, y: height / 2, fill: 'var(--muted)', 'font-size': 13, 'text-anchor': 'middle' });
+    label.textContent = 'No latency samples yet';
+    svg.appendChild(label);
+    return;
+  }
+
+  const max = Math.max(...values, 1);
+  const points = values.map((value, index) => {
+    const x = values.length === 1 ? width / 2 : pad + (index / (values.length - 1)) * (width - pad * 2);
+    const y = height - pad - (value / max) * (height - pad * 2);
+    return [x, y];
+  });
+
+  const line = points.map(([x, y]) => `${x},${y}`).join(' ');
+  const area = `M ${points[0][0]},${height - pad} L ${points.map(([x, y]) => `${x},${y}`).join(' L ')} L ${points[points.length - 1][0]},${height - pad} Z`;
+
+  svg.appendChild(make('path', { d: area, fill: 'rgba(34,197,94,.10)', stroke: 'none' }));
+  svg.appendChild(make('polyline', { points: line, fill: 'none', stroke: 'var(--accent)', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+
+  const maxLabel = make('text', { x: width - pad, y: pad + 10, fill: 'var(--muted)', 'font-size': 10, 'text-anchor': 'end' });
+  maxLabel.textContent = `${Math.round(max)} ms`;
+  svg.appendChild(maxLabel);
+}
+
+function renderUptimeStrip() {
+  const strip = $('uptimeStrip');
+  strip.replaceChildren();
+  const entries = filterHistory(24).slice(-48);
+  if (!entries.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = 'No availability samples yet.';
+    strip.appendChild(empty);
+    setText('availabilityHint', 'Waiting for samples...');
+    return;
+  }
+
+  entries.forEach((entry) => {
+    const tick = document.createElement('div');
+    tick.className = 'uptime-tick ' + (entry.status === 'healthy' ? 'online' : 'offline');
+    tick.title = `${formatTime(entry.time)} · ${entry.status}`;
+    strip.appendChild(tick);
+  });
+
+  const uptime = computeUptime(entries);
+  setText('availabilityHint', `${uptime}% · ${entries.length} samples`);
+}
+
+function renderAvailabilityBars() {
+  const wrap = $('availabilityBars');
+  wrap.replaceChildren();
+  const entries = filterHistory(state.metricsRange).slice(-48);
+  if (!entries.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = 'No samples in this range.';
+    wrap.appendChild(empty);
+    setText('availabilityValue', '--');
+    return;
+  }
+
+  entries.forEach((entry) => {
+    const tick = document.createElement('div');
+    tick.className = 'uptime-tick ' + (entry.status === 'healthy' ? 'online' : 'offline');
+    tick.title = `${formatTime(entry.time)} · ${entry.status}`;
+    wrap.appendChild(tick);
+  });
+
+  const uptime = computeUptime(entries);
+  setText('availabilityValue', uptime === null ? '--' : `${uptime}%`);
+}
+
+function renderCharts() {
+  renderLatencyChart();
+  renderUptimeStrip();
+  renderAvailabilityBars();
+  renderKpis();
+}
+
+async function loadMetrics() {
+  try {
+    const response = await fetch('/api/metrics', { headers: { 'x-dashboard-token': dashboardToken } });
+    if (!response.ok) return;
+    const data = await response.json();
+    state.metrics = {
+      history: Array.isArray(data.history) ? data.history : [],
+      latency: Array.isArray(data.latency) ? data.latency : [],
+      summary: data.summary || { samples: 0, uptime: null }
+    };
+    renderCharts();
+  } catch {}
+}
+
+async function recordLatency(latency) {
+  try {
+    await fetch('/api/metrics', {
+      method: 'POST',
+      headers: apiHeaders(),
+      body: JSON.stringify({ latency })
+    });
+  } catch {}
+}
+
+async function loadHealth() {
+  if (state.refreshing) return;
+  state.refreshing = true;
+  setSideStatus('Checking...', 'checking');
+  try {
+    const healthResponse = await fetch('/api?health=true', { headers: { 'x-dashboard-token': dashboardToken } });
+    const health = await healthResponse.json();
+    state.health = health;
+    renderServices(health.services || {});
+    setPill(health.services || {});
+
+    const startedAt = performance.now();
+    const testResponse = await fetch('/api?test=true', { headers: { 'x-dashboard-token': dashboardToken } });
+    const test = await testResponse.json();
+    const latency = Math.round(performance.now() - startedAt);
+
+    $('apiRaw').textContent = JSON.stringify(test, null, 2);
+    const now = new Date();
+    setText('lastUpdated', `updated ${now.toLocaleTimeString()}`);
+    setText('sideMeta', `${state.auto ? 'Auto-refresh' : 'Manual'} · ${latency}ms`);
+    setSideStatus(health.status === 'healthy' ? 'System healthy' : 'System degraded', health.status === 'healthy' ? 'ok' : 'bad');
+
+    if (!test.success || !test.telegram) state.errors += 1;
+    state.logs.push({ time: new Date().toISOString(), latency, health, test });
+    if (state.logs.length > 100) state.logs = state.logs.slice(-100);
+    setText('commandHint', 'Ready');
+
+    await recordLatency(latency);
+    await loadMetrics();
+    renderKpis();
+    renderCharts();
+    state.nextRefresh = Date.now() + 30000;
+  } catch (error) {
+    setSideStatus('Health check failed', 'bad');
+    setText('lastUpdated', 'health check failed');
+    setText('commandHint', 'Health error');
+    setText('apiRaw', error.message);
+    toast(error.message, 'error');
+    state.errors += 1;
+  } finally {
+    state.refreshing = false;
+  }
+}
+
+function renderCommandMenu() {
+  const menu = $('commandMenu');
+  menu.replaceChildren();
+  dashCommands.forEach((cmd, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'cmd-chip';
+    const num = document.createElement('span');
+    num.className = 'cmd-num';
+    num.textContent = String(index + 1);
+    const label = document.createElement('span');
+    label.textContent = cmd;
+    button.append(num, label);
+    button.addEventListener('click', () => runCommand(cmd));
+    menu.appendChild(button);
+  });
+}
+
+function addRecentCommand(command) {
+  try {
+    const recent = JSON.parse(localStorage.getItem('helios_recent_commands') || '[]');
+    const next = [command, ...recent.filter((item) => item !== command)].slice(0, 6);
+    localStorage.setItem('helios_recent_commands', JSON.stringify(next));
+  } catch {}
+}
+
+function getRecentCommands() {
+  try {
+    const recent = JSON.parse(localStorage.getItem('helios_recent_commands') || '[]');
+    return Array.isArray(recent) ? recent : [];
+  } catch {
+    return [];
+  }
+}
+
+async function runCommand(commandOverride) {
+  let command = commandOverride || $('dashCommand').value.trim();
+  if (!command) return;
+  if (/^\d+$/.test(command)) {
+    const index = Number(command) - 1;
+    if (index >= 0 && index < dashCommands.length) command = dashCommands[index];
+  }
+
+  addRecentCommand(command);
+  state.commandHistory.unshift(command);
+  state.commandHistoryIndex = -1;
+  const terminal = $('dashTerminal');
+  terminal.textContent += `\n$ ${command}`;
+  terminal.scrollTop = terminal.scrollHeight;
+  $('dashCommand').value = '';
+  setText('commandHint', 'Running...');
+
+  try {
+    const response = await fetch('/api', {
+      method: 'POST',
+      headers: apiHeaders(),
+      body: JSON.stringify({ message: { chat: { id: 12345 }, text: command, message_id: Date.now() } })
+    });
+    const data = await response.json();
+    terminal.textContent += `\n${JSON.stringify(data, null, 2)}`;
+    setText('commandHint', response.ok ? 'Done' : 'Failed');
+    if (!response.ok) throw new Error(data.error || 'Command failed');
+    toast(`Command ${command} completed`);
+    await loadAudit();
+  } catch (error) {
+    terminal.textContent += `\nError: ${error.message}`;
+    setText('commandHint', 'Error');
+    toast(error.message, 'error');
+  }
+  terminal.scrollTop = terminal.scrollHeight;
+}
+
+function clearTerminal() {
+  $('dashTerminal').textContent = 'Ready.';
+  setText('commandHint', 'Ready');
+}
+
+function getPaletteItems() {
+  const items = [];
+  const seen = new Set();
+  getRecentCommands().slice(0, 4).forEach((command) => {
+    if (seen.has(command)) return;
+    seen.add(command);
+    items.push({ label: command, hint: 'Recent command', run: () => runCommand(command) });
+  });
+  dashCommands.forEach((command) => {
+    if (seen.has(command)) return;
+    seen.add(command);
+    items.push({ label: command, hint: 'Command', run: () => runCommand(command) });
+  });
+  items.push(
+    { label: 'Refresh dashboard', hint: 'Action', run: () => refreshAll() },
+    { label: 'Open settings', hint: 'Action', run: () => openSettings() },
+    { label: 'Clear terminal', hint: 'Action', run: () => clearTerminal() },
+    { label: 'Export local logs', hint: 'Action', run: () => exportLogs() },
+    { label: 'Go to overview', hint: 'Navigate', run: () => goTo('overview') },
+    { label: 'Go to operations', hint: 'Navigate', run: () => goTo('operations') },
+    { label: 'Go to memory', hint: 'Navigate', run: () => goTo('memory') },
+    { label: 'Go to audit', hint: 'Navigate', run: () => goTo('audit') }
+  );
+  return items;
+}
+
+function renderPalette() {
+  const query = $('paletteInput').value.trim().toLowerCase();
+  const all = getPaletteItems();
+  state.palette.items = query
+    ? all.filter((item) => item.label.toLowerCase().includes(query) || item.hint.toLowerCase().includes(query))
+    : all;
+  state.palette.index = Math.max(0, Math.min(state.palette.index, state.palette.items.length - 1));
+
+  const list = $('paletteList');
+  list.replaceChildren();
+  if (!state.palette.items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = 'No matches.';
+    list.appendChild(empty);
+    return;
+  }
+
+  state.palette.items.forEach((item, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'palette-item' + (index === state.palette.index ? ' active' : '');
+    const label = document.createElement('span');
+    label.className = 'palette-label';
+    label.textContent = item.label;
+    const hint = document.createElement('span');
+    hint.className = 'palette-hint';
+    hint.textContent = item.hint;
+    button.append(label, hint);
+    button.addEventListener('click', () => choosePaletteItem(index));
+    list.appendChild(button);
+  });
+}
+
+function choosePaletteItem(index) {
+  const item = state.palette.items[index];
+  if (!item) return;
+  closePalette();
+  item.run();
+}
+
+function openPalette() {
+  $('palette').hidden = false;
+  $('paletteInput').value = '';
+  state.palette.index = 0;
+  renderPalette();
+  $('paletteInput').focus();
+  document.body.classList.add('palette-open');
+}
+
+function closePalette() {
+  $('palette').hidden = true;
+  document.body.classList.remove('palette-open');
+}
+
+function getAuditCutoff() {
+  if (state.audit.date === '24h') return Date.now() - 24 * 3600 * 1000;
+  if (state.audit.date === '7d') return Date.now() - 7 * 24 * 3600 * 1000;
+  return 0;
+}
+
+function getFilteredAudit() {
+  const cutoff = getAuditCutoff();
+  const query = state.audit.search.toLowerCase();
+  return state.audit.events.filter((event) => {
+    const name = String(event.event || '');
+    if (state.audit.type === 'memory' && !name.startsWith('memory_')) return false;
+    if (state.audit.type === 'command' && !name.includes('command')) return false;
+    if (state.audit.type === 'error' && !/error|fail|unauth/i.test(name)) return false;
+    if (cutoff && new Date(event.time).getTime() < cutoff) return false;
+    if (!query) return true;
+    return [event.event, event.command, event.source, event.ip]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(query));
+  });
+}
+
+function auditIsError(event) {
+  return /error|fail|unauth/i.test(String(event.event || ''));
+}
+
+function renderAudit() {
+  const filtered = getFilteredAudit();
+  const totalPages = Math.max(1, Math.ceil(filtered.length / state.audit.pageSize));
+  state.audit.page = Math.min(state.audit.page, totalPages);
+  const page = Math.max(1, state.audit.page);
+  const start = (page - 1) * state.audit.pageSize;
+  const rows = filtered.slice(start, start + state.audit.pageSize);
+
+  const list = $('auditList');
+  list.replaceChildren();
+  if (!rows.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = 'No audit events match these filters.';
+    list.appendChild(empty);
+  } else {
+    rows.forEach((event) => {
+      const row = document.createElement('div');
+      row.className = 'audit-row' + (auditIsError(event) ? ' error' : '');
+      const time = document.createElement('div');
+      time.className = 'audit-time';
+      time.textContent = formatTime(event.time);
+      const name = document.createElement('div');
+      name.className = 'audit-event';
+      name.textContent = event.event || 'event';
+      const detail = document.createElement('div');
+      detail.className = 'audit-detail';
+      const parts = [];
+      if (event.command) parts.push(event.command);
+      if (event.source) parts.push(`source: ${event.source}`);
+      if (event.entries !== undefined) parts.push(`entries: ${event.entries}`);
+      if (event.ip) parts.push(`ip: ${event.ip}`);
+      detail.textContent = parts.join(' · ') || '--';
+      row.append(time, name, detail);
+      list.appendChild(row);
+    });
+  }
+
+  setText('auditStatus', `${filtered.length} events`);
+  setText('auditPage', `Page ${page} / ${totalPages}`);
+  $('auditPrev').disabled = page <= 1;
+  $('auditNext').disabled = page >= totalPages;
+}
+
+async function loadAudit() {
+  try {
+    const response = await fetch('/api/audit', { headers: { 'x-dashboard-token': dashboardToken } });
+    if (!response.ok) throw new Error('Unable to load audit log');
+    const data = await response.json();
+    state.audit.events = Array.isArray(data.events) ? data.events : [];
+    renderAudit();
+    renderRecentActivity();
+  } catch (error) {
+    setText('auditStatus', `Error: ${error.message}`);
+    const list = $('auditList');
+    list.replaceChildren();
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = error.message;
+    list.appendChild(empty);
+  }
+}
+
+function downloadFile(filename, content, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportLogs() {
+  downloadFile('heliospilot-logs.json', JSON.stringify({ logs: state.logs, metrics: state.metrics }, null, 2), 'application/json');
+  toast('Logs exported');
+}
+
+function csvEscape(value) {
+  return `"${String(value ?? '').replace(/"/g, '""')}"`;
+}
+
+function exportAudit(format) {
+  const events = getFilteredAudit();
+  if (format === 'csv') {
+    const header = ['time', 'event', 'command', 'source', 'entries', 'ip'];
+    const rows = events.map((event) => [event.time, event.event, event.command, event.source, event.entries, event.ip].map(csvEscape).join(','));
+    downloadFile('heliospilot-audit.csv', [header.join(','), ...rows].join('\n'), 'text/csv');
+  } else {
+    downloadFile('heliospilot-audit.json', JSON.stringify(events, null, 2), 'application/json');
+  }
+  toast(`Audit exported as ${format.toUpperCase()}`);
+}
+
+function memoryLines() {
+  return $('memoryText').value.split(/\n+/).map((entry) => entry.trim()).filter(Boolean);
+}
+
+function renderMemoryMatches() {
+  const wrap = $('memoryMatches');
+  const query = $('memorySearch').value.trim().toLowerCase();
+  if (!query) {
+    wrap.hidden = true;
+    wrap.replaceChildren();
+    return;
+  }
+
+  const matches = memoryLines().filter((entry) => entry.toLowerCase().includes(query));
+  wrap.hidden = false;
+  wrap.replaceChildren();
+  if (!matches.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = 'No matching entries.';
+    wrap.appendChild(empty);
+    return;
+  }
+
+  matches.forEach((entry) => {
+    const row = document.createElement('div');
+    row.className = 'memory-match';
+    row.textContent = entry;
+    wrap.appendChild(row);
+  });
+}
+
+function updateMemoryMeta() {
+  const lines = memoryLines();
+  const chars = $('memoryText').value.length;
+  setText('memoryCount', `${lines.length} / 25`);
+  setText('memoryChars', `${chars} / 50000 chars`);
+  const dirty = lines.join('\n') !== state.memory.entries.join('\n');
+  setText('memoryDirty', dirty ? 'Unsaved changes' : 'Saved');
+  $('memoryDirty').style.color = dirty ? 'var(--danger)' : 'var(--muted)';
+  renderMemoryMatches();
+}
+
+function renderMemory() {
+  $('memoryText').value = state.memory.entries.join('\n');
+  setText('memoryContext', state.memory.context || '--');
+  setText('memorySaved', state.memory.lastSaved ? formatTime(state.memory.lastSaved) : '--');
+  $('undoMemory').disabled = !state.memory.undo;
+  updateMemoryMeta();
+}
+
+async function loadMemory() {
+  try {
+    const response = await fetch('/api/memory', { headers: { 'x-dashboard-token': dashboardToken } });
+    if (!response.ok) throw new Error('Unable to load memory');
+    const data = await response.json();
+    const memory = data.memory || {};
+    state.memory.entries = Array.isArray(memory.dynamicMemory) ? memory.dynamicMemory : [];
+    state.memory.context = memory.lastContextUrl || null;
+    state.memory.lastSaved = memory.updatedAt || null;
+    state.memory.undo = null;
+    state.memory.loading = false;
+    renderMemory();
+    setText('memoryStatus', 'Loaded');
+  } catch (error) {
+    state.memory.loading = false;
+    setText('memoryStatus', `Error: ${error.message}`);
+  }
+}
+
+async function saveMemory(entries, options = {}) {
+  const snapshot = state.memory.entries.slice();
+  const payload = options.clear ? { clear: true } : { dynamicMemory: entries };
   try {
     const response = await fetch('/api/memory', {
       method: 'POST',
-      headers: memoryHeaders(),
+      headers: apiHeaders(),
       body: JSON.stringify(payload)
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Save failed');
-    renderMemory(data.memory || {});
-    status.textContent = 'Saved';
+    const memory = data.memory || {};
+    state.memory.entries = Array.isArray(memory.dynamicMemory) ? memory.dynamicMemory : [];
+    state.memory.context = memory.lastContextUrl || null;
+    state.memory.lastSaved = new Date().toISOString();
+    if (!options.skipUndo) state.memory.undo = snapshot;
+    renderMemory();
+    setText('memoryStatus', options.clear ? 'Cleared' : 'Saved');
+    toast(options.clear ? 'Memory cleared' : 'Memory saved');
+    await loadAudit();
   } catch (error) {
-    status.textContent = 'Error: ' + error.message;
+    setText('memoryStatus', `Error: ${error.message}`);
+    toast(error.message, 'error');
   }
 }
-document.getElementById('saveMemory').addEventListener('click', () => {
-  const entries = document.getElementById('memoryText').value.split(/\n+/).map((entry) => entry.trim()).filter(Boolean);
-  saveMemory({ dynamicMemory: entries });
-});
-document.getElementById('clearMemory').addEventListener('click', () => {
-  if (confirm('Clear all dynamic memory entries?')) saveMemory({ clear: true });
-});
-loadMemory();
 
-document.getElementById('dashCommand').addEventListener('keydown', (event) => {
+function confirmAction(title, message, label = 'Confirm') {
+  return new Promise((resolve) => {
+    $('confirmTitle').textContent = title;
+    $('confirmMessage').textContent = message;
+    $('confirmOk').textContent = label;
+    state.confirmResolve = resolve;
+    $('confirmDialog').showModal();
+  });
+}
+
+function closeConfirm(result) {
+  const resolve = state.confirmResolve;
+  state.confirmResolve = null;
+  $('confirmDialog').close();
+  if (resolve) resolve(result);
+}
+
+function goTo(section) {
+  const target = document.getElementById(section);
+  if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  closeSidebar();
+}
+
+function openSettings() {
+  $('settingAuto').checked = state.auto;
+  $('settingCompact').checked = state.compact;
+  $('settingsDialog').showModal();
+}
+
+function setCompact(enabled) {
+  state.compact = enabled;
+  document.body.classList.toggle('compact', enabled);
+  localStorage.setItem('helios_compact', enabled ? '1' : '0');
+  $('settingCompact').checked = enabled;
+}
+
+function setAutoRefresh(enabled) {
+  state.auto = enabled;
+  state.nextRefresh = Date.now() + 30000;
+  $('settingAuto').checked = enabled;
+  setText('refreshCountdown', enabled ? '30s' : 'paused');
+}
+
+function openSidebar() {
+  $('sidebar').classList.add('open');
+  $('sidebarOverlay').classList.add('show');
+}
+
+function closeSidebar() {
+  $('sidebar').classList.remove('open');
+  $('sidebarOverlay').classList.remove('show');
+}
+
+async function refreshAll(silent = false) {
+  await Promise.all([loadHealth(), loadMemory(), loadAudit()]);
+  if (!silent) toast('Dashboard refreshed');
+}
+
+function tick() {
+  if (state.auto && !state.refreshing && Date.now() >= state.nextRefresh) {
+    state.nextRefresh = Date.now() + 30000;
+    loadHealth();
+  }
+  if (state.auto) {
+    const seconds = Math.max(0, Math.ceil((state.nextRefresh - Date.now()) / 1000));
+    setText('refreshCountdown', `${seconds}s`);
+  }
+}
+
+renderServiceSkeleton();
+renderCommandMenu();
+renderRecentActivity();
+renderAudit();
+
+const savedCompact = localStorage.getItem('helios_compact') === '1';
+setCompact(savedCompact);
+setAutoRefresh(true);
+setInterval(tick, 1000);
+if (!dashboardToken) {
+  setSideStatus('Token missing', 'bad');
+  toast('Dashboard token missing. Reopen /dashboard.html.', 'error');
+}
+refreshAll(true);
+
+$('menuToggle').addEventListener('click', openSidebar);
+$('sidebarOverlay').addEventListener('click', closeSidebar);
+$('settingsOpen').addEventListener('click', openSettings);
+$('settingsDialog').addEventListener('click', (event) => { if (event.target === $('settingsDialog')) $('settingsDialog').close(); });
+$('confirmDialog').addEventListener('click', (event) => { if (event.target === $('confirmDialog')) closeConfirm(false); });
+$('confirmDialog').addEventListener('cancel', (event) => { event.preventDefault(); closeConfirm(false); });
+$('confirmDialog').addEventListener('close', () => {
+  if (state.confirmResolve) {
+    const resolve = state.confirmResolve;
+    state.confirmResolve = null;
+    resolve(false);
+  }
+});
+$('confirmCancel').addEventListener('click', () => closeConfirm(false));
+$('confirmOk').addEventListener('click', () => closeConfirm(true));
+document.querySelectorAll('[data-close-dialog]').forEach((button) => {
+  button.addEventListener('click', () => {
+    const dialog = $(button.dataset.closeDialog);
+    if (dialog) dialog.close();
+  });
+});
+
+$('settingsDialog').addEventListener('close', () => {
+  setAutoRefresh($('settingAuto').checked);
+  setCompact($('settingCompact').checked);
+});
+
+$('refreshBtn').addEventListener('click', () => refreshAll());
+$('servicesRefresh').addEventListener('click', () => loadHealth());
+$('compactToggle').addEventListener('click', () => setCompact(!state.compact));
+$('paletteOpen').addEventListener('click', openPalette);
+$('paletteOpenAlt').addEventListener('click', openPalette);
+$('palette').addEventListener('click', (event) => { if (event.target === $('palette')) closePalette(); });
+$('paletteInput').addEventListener('input', () => { state.palette.index = 0; renderPalette(); });
+$('paletteInput').addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') { event.preventDefault(); closePalette(); return; }
+  if (event.key === 'ArrowDown') { event.preventDefault(); state.palette.index = Math.min(state.palette.items.length - 1, state.palette.index + 1); renderPalette(); return; }
+  if (event.key === 'ArrowUp') { event.preventDefault(); state.palette.index = Math.max(0, state.palette.index - 1); renderPalette(); return; }
+  if (event.key === 'Enter') { event.preventDefault(); choosePaletteItem(state.palette.index); }
+});
+document.addEventListener('keydown', (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault();
+    openPalette();
+  }
+  if (event.key === 'Escape' && !$('palette').hidden) closePalette();
+});
+
+document.querySelectorAll('.nav-link[data-section]').forEach((link) => {
+  link.addEventListener('click', () => {
+    document.querySelectorAll('.nav-link[data-section]').forEach((item) => item.classList.remove('active'));
+    link.classList.add('active');
+    setText('pageTitle', link.textContent.trim());
+    closeSidebar();
+  });
+});
+
+const observed = document.querySelectorAll('.page-section');
+const observer = new IntersectionObserver((entries) => {
+  const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+  if (!visible) return;
+  const section = visible.target.id;
+  document.querySelectorAll('.nav-link[data-section]').forEach((link) => link.classList.toggle('active', link.dataset.section === section));
+  setText('pageTitle', section.charAt(0).toUpperCase() + section.slice(1));
+}, { rootMargin: '-35% 0px -55% 0px' });
+observed.forEach((section) => observer.observe(section));
+
+$('refreshCountdown').addEventListener('click', () => setAutoRefresh(!state.auto));
+$('paletteOpen').setAttribute('aria-haspopup', 'dialog');
+
+$('runCommand').addEventListener('click', () => runCommand());
+$('clearCommand').addEventListener('click', clearTerminal);
+$('dashCommand').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') { event.preventDefault(); runCommand(); return; }
   if (event.key === 'ArrowUp') {
     event.preventDefault();
-    if (dashHistory.length && dashHistoryIndex < dashHistory.length - 1) {
-      dashHistoryIndex += 1;
-      document.getElementById('dashCommand').value = dashHistory[dashHistoryIndex];
+    if (state.commandHistory.length && state.commandHistoryIndex < state.commandHistory.length - 1) {
+      state.commandHistoryIndex += 1;
+      $('dashCommand').value = state.commandHistory[state.commandHistoryIndex];
     }
-  } else if (event.key === 'ArrowDown') {
+    return;
+  }
+  if (event.key === 'ArrowDown') {
     event.preventDefault();
-    if (dashHistoryIndex > 0) {
-      dashHistoryIndex -= 1;
-      document.getElementById('dashCommand').value = dashHistory[dashHistoryIndex];
+    if (state.commandHistoryIndex > 0) {
+      state.commandHistoryIndex -= 1;
+      $('dashCommand').value = state.commandHistory[state.commandHistoryIndex];
     } else {
-      dashHistoryIndex = -1;
-      document.getElementById('dashCommand').value = '';
+      state.commandHistoryIndex = -1;
+      $('dashCommand').value = '';
     }
-  } else if (event.key === 'Tab') {
+    return;
+  }
+  if (event.key === 'Tab') {
     event.preventDefault();
-    const value = document.getElementById('dashCommand').value.trim();
-    const match = dashCommands.find((command) => command.startsWith(value) && command !== value);
-    if (match) document.getElementById('dashCommand').value = match;
+    const value = $('dashCommand').value.trim();
+    const match = dashCommands.find((cmd) => cmd.startsWith(value) && cmd !== value);
+    if (match) $('dashCommand').value = match;
   }
 });
-document.getElementById('runCommand').addEventListener('click', async () => {
-  let cmd = document.getElementById('dashCommand').value.trim();
-  if (!cmd) return;
-  if (/^\\d+$/.test(cmd)) {
-    const index = Number(cmd) - 1;
-    if (index >= 0 && index < dashCommands.length) cmd = dashCommands[index];
-  }
-  dashHistory.unshift(cmd);
-  dashHistoryIndex = -1;
-  const terminal = document.getElementById('dashTerminal');
-  terminal.textContent += '\\n$ ' + cmd;
-  document.getElementById('dashCommand').value = '';
-  try {
-    const r = await fetch('/api', {
-      method: 'POST',
-      headers: memoryHeaders(),
-      body: JSON.stringify({ message: { chat: { id: 12345 }, text: cmd, message_id: Date.now() } })
-    });
-    const d = await r.json();
-    terminal.textContent += '\\n' + JSON.stringify(d);
-  } catch (e) {
-    terminal.textContent += '\\nError: ' + e.message;
-  }
-  terminal.scrollTop = terminal.scrollHeight;
+$('copyTerminal').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($('dashTerminal').textContent); toast('Terminal copied'); }
+  catch { toast('Copy failed', 'error'); }
 });
-document.getElementById('clearCommand').addEventListener('click', () => {
-  document.getElementById('dashTerminal').textContent = 'Ready.';
+$('exportLogs').addEventListener('click', exportLogs);
+
+document.querySelectorAll('[data-range]').forEach((button) => {
+  button.addEventListener('click', () => {
+    state.metricsRange = Number(button.dataset.range);
+    document.querySelectorAll('[data-range]').forEach((item) => item.classList.toggle('active', item === button));
+    renderCharts();
+  });
 });
-document.getElementById('exportLogs').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'heliospilot-logs.json';
-  a.click();
-  URL.revokeObjectURL(url);
+
+$('auditType').addEventListener('change', () => { state.audit.type = $('auditType').value; state.audit.page = 1; renderAudit(); });
+$('auditDate').addEventListener('change', () => { state.audit.date = $('auditDate').value; state.audit.page = 1; renderAudit(); });
+$('auditSearch').addEventListener('input', () => { state.audit.search = $('auditSearch').value; state.audit.page = 1; renderAudit(); });
+$('auditPrev').addEventListener('click', () => { state.audit.page = Math.max(1, state.audit.page - 1); renderAudit(); });
+$('auditNext').addEventListener('click', () => { state.audit.page += 1; renderAudit(); });
+$('exportAuditJson').addEventListener('click', () => exportAudit('json'));
+$('exportAuditCsv').addEventListener('click', () => exportAudit('csv'));
+
+$('memoryText').addEventListener('input', updateMemoryMeta);
+$('memorySearch').addEventListener('input', renderMemoryMatches);
+$('memoryQuickAdd').addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); $('memoryQuickAddBtn').click(); } });
+$('memoryQuickAddBtn').addEventListener('click', () => {
+  const value = $('memoryQuickAdd').value.trim();
+  if (!value) return;
+  const lines = memoryLines();
+  if (lines.includes(value)) { toast('Entry already exists', 'error'); return; }
+  lines.push(value);
+  $('memoryText').value = lines.join('\n');
+  $('memoryQuickAdd').value = '';
+  updateMemoryMeta();
+  toast('Entry added');
+});
+$('saveMemory').addEventListener('click', () => saveMemory(memoryLines()));
+$('undoMemory').addEventListener('click', async () => {
+  if (!state.memory.undo) return;
+  const target = state.memory.undo.slice();
+  state.memory.undo = null;
+  await saveMemory(target, { skipUndo: true });
+});
+$('clearMemory').addEventListener('click', async () => {
+  const ok = await confirmAction('Clear memory?', 'This removes all dynamic memory entries. You can undo this action once.', 'Clear memory');
+  if (ok) await saveMemory([], { clear: true });
+});
+$('signOut').addEventListener('click', () => {
+  sessionStorage.removeItem('dashboardToken');
+  window.location.href = '/dashboard.html';
+});
+$('clearLogs').addEventListener('click', () => {
+  state.logs = [];
+  localStorage.removeItem('helios_recent_commands');
+  toast('Local logs cleared');
 });
 </script>
 </body>

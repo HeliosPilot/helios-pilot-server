@@ -19,8 +19,11 @@ api/
   index.js          Main Telegram + GitHub webhook handler
   dashboard.js      Token-protected dashboard HTML endpoint
   memory.js         Token-protected memory read/write endpoint
+  audit.js          Token-protected audit log endpoint
+  metrics.js        Token-protected health/latency history endpoint
 services/
   security.js       Token comparison, rate limiting, audit logging
+  metrics.js        Health snapshots and latency history
   ai.js             Groq / OpenRouter fallback
   github.js         GitHub App + REST integration
   memory.js         Vercel KV memory storage
@@ -86,15 +89,17 @@ Open:
 https://<your-deployment>/dashboard.html
 ```
 
-Enter the value of `DASHBOARD_TOKEN`. The dashboard loads through `/api/dashboard?token=...` and its API calls send the token through the `x-dashboard-token` header.
+Enter the value of `DASHBOARD_TOKEN`. The dashboard is fetched with the `x-dashboard-token` header and rendered inside a same-origin iframe, so the token is not placed in the URL. Its API calls send the token through the same header.
 
 Dashboard capabilities:
 
-- Service health cards
-- Bot and Telegram connectivity tests
-- API latency and session charts
-- Command runner with numbered command selection
-- Persistent memory editor with Save / Clear
+- Sidebar control center with KPI cards and service status
+- 24-hour availability strip and sparklines
+- Command palette (`Ctrl+K`) with recent commands, keyboard history, and autocomplete
+- Latency chart with 1h / 6h / 24h ranges
+- Persistent memory search, quick-add, save, and one-step undo
+- Protected audit trail with type/date/search filters, pagination, and CSV/JSON export
+- Compact mode, skeleton loading, toast feedback, and responsive mobile navigation
 - JSON log export
 
 ## API Endpoints
@@ -104,9 +109,12 @@ Dashboard capabilities:
 | POST | `/api` | Telegram webhook, GitHub webhook, and dashboard commands |
 | GET | `/api?health=true` | Service health |
 | GET | `/api?test=true` | Connectivity test |
-| GET | `/api/dashboard?token=...` | Protected dashboard HTML |
+| GET | `/api/dashboard` | Protected dashboard HTML (`x-dashboard-token` header) |
 | GET | `/api/memory` | Read runtime memory (token required) |
 | POST | `/api/memory` | Save or clear runtime memory (token required) |
+| GET | `/api/audit` | Read the recent audit trail (token required) |
+| GET | `/api/metrics` | Read health and latency history (token required) |
+| POST | `/api/metrics` | Record a latency sample (token required) |
 
 ## Telegram Commands
 

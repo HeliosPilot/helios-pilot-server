@@ -4,6 +4,7 @@ import { sendTelegramMessage, answerTelegramCallback, setTelegramMessageReaction
 import { verifyGitHubSignature, addCommentToIssueOrPR, parseAndFetchGitHubUrl, fetchAppInstallationsAndRepos, getInstallationOctokitForRepo } from '../services/github.js';
 import { processSmartAIResponse } from '../services/ai.js';
 import { auditEvent, enforceRateLimit, isDashboardAuthorized, rateLimitResponse } from '../services/security.js';
+import { recordHealthSnapshot } from '../services/metrics.js';
 
 // Initialize Sentry error tracking
 initSentry();
@@ -323,16 +324,22 @@ export default async function handler(req, res) {
       kvConnected = false;
     }
 
+    const services = {
+      telegram: Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
+      github: Boolean((process.env.GITHUB_APP_ID || process.env.APP_ID) && (process.env.GITHUB_PRIVATE_KEY || process.env.PRIVATE_KEY)),
+      ai: Boolean(process.env.GROQ_API_KEY || process.env.OPENROUTER_API_KEY),
+      sentry: Boolean(process.env.SENTRY_DSN),
+      kv: kvConnected
+    };
+    const requiredOnline = services.telegram && services.github && services.ai && services.kv;
+    const status = requiredOnline ? "healthy" : "degraded";
+
+    await recordHealthSnapshot({ status, services });
+
     return res.status(200).json({
-      status: "healthy",
+      status,
       timestamp: new Date().toISOString(),
-      services: {
-        telegram: Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
-        github: Boolean((process.env.GITHUB_APP_ID || process.env.APP_ID) && (process.env.GITHUB_PRIVATE_KEY || process.env.PRIVATE_KEY)),
-        ai: Boolean(process.env.GROQ_API_KEY || process.env.OPENROUTER_API_KEY),
-        sentry: Boolean(process.env.SENTRY_DSN),
-        kv: kvConnected
-      }
+      services
     });
   }
 
