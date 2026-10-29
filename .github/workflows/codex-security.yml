@@ -66,7 +66,7 @@ jobs:
 
       - name: Upload security findings to code scanning
         if: ${{ always() && steps.preflight.outputs.ready == 'true' && steps.security.outputs.sarif-upload-ready == 'true' }}
-        uses: github/codeql-action/upload-sarif@793b778da9c9275a0f276522b27cb5fc14bba279 # v4
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
         with:
           sarif_file: ${{ steps.security.outputs.sarif-path }}
           sha: ${{ steps.security.outputs.scanned-sha }}
